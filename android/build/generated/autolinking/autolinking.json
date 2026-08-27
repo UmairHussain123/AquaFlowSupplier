@@ -1,20 +1,20 @@
 {
-  "root": "/Users/muhammadhanan/AquaFlowSupplier",
-  "reactNativePath": "/Users/muhammadhanan/AquaFlowSupplier/node_modules/react-native",
+  "root": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier",
+  "reactNativePath": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/react-native",
   "reactNativeVersion": "0.87",
   "dependencies": {
     "react-native-safe-area-context": {
-      "root": "/Users/muhammadhanan/AquaFlowSupplier/node_modules/react-native-safe-area-context",
+      "root": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/react-native-safe-area-context",
       "name": "react-native-safe-area-context",
       "platforms": {
         "ios": {
-          "podspecPath": "/Users/muhammadhanan/AquaFlowSupplier/node_modules/react-native-safe-area-context/react-native-safe-area-context.podspec",
+          "podspecPath": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/react-native-safe-area-context/react-native-safe-area-context.podspec",
           "version": "5.9.1",
           "configurations": [],
           "scriptPhases": []
         },
         "android": {
-          "sourceDir": "/Users/muhammadhanan/AquaFlowSupplier/node_modules/react-native-safe-area-context/android",
+          "sourceDir": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/react-native-safe-area-context/android",
           "packageImportPath": "import com.th3rdwave.safeareacontext.SafeAreaContextPackage;",
           "packageInstance": "new SafeAreaContextPackage()",
           "buildTypes": [],
@@ -23,7 +23,7 @@
             "RNCSafeAreaProviderComponentDescriptor",
             "RNCSafeAreaViewComponentDescriptor"
           ],
-          "cmakeListsPath": "/Users/muhammadhanan/AquaFlowSupplier/node_modules/react-native-safe-area-context/android/src/main/jni/CMakeLists.txt",
+          "cmakeListsPath": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/react-native-safe-area-context/android/src/main/jni/CMakeLists.txt",
           "cxxModuleCMakeListsModuleName": null,
           "cxxModuleCMakeListsPath": null,
           "cxxModuleHeaderName": null,
@@ -194,7 +194,7 @@
         {
           "name": "--path <path>",
           "description": "Path to the React Native project root.",
-          "default": "/Users/muhammadhanan/AquaFlowSupplier"
+          "default": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier"
         },
         {
           "name": "--platform <string>",
@@ -289,7 +289,7 @@
         {
           "name": "--terminal <string>",
           "description": "Launches the Metro Bundler in a new window using the specified terminal path.",
-          "default": "Apple_Terminal"
+          "default": "vscode"
         },
         {
           "name": "--binary-path <string>",
@@ -457,7 +457,7 @@
         {
           "name": "--terminal <string>",
           "description": "Launches the Metro Bundler in a new window using the specified terminal path.",
-          "default": "Apple_Terminal"
+          "default": "vscode"
         },
         {
           "name": "--appId <string>",
@@ -532,7 +532,7 @@
   "assets": [],
   "project": {
     "ios": {
-      "sourceDir": "/Users/muhammadhanan/AquaFlowSupplier/ios",
+      "sourceDir": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/ios",
       "xcodeProject": {
         "name": "AquaFlowSupplier.xcworkspace",
         "path": ".",
@@ -541,7 +541,7 @@
       "assets": []
     },
     "android": {
-      "sourceDir": "/Users/muhammadhanan/AquaFlowSupplier/android",
+      "sourceDir": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/android",
       "appName": "app",
       "packageName": "com.aquaflowsupplier",
       "applicationId": "com.aquaflowsupplier",
