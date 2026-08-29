@@ -6,8 +6,12 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Take a photo of your licence, lab report or shopfront when applying to become a supplier.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Attach an existing photo of your licence, lab report or shopfront to your supplier application.</string>
 	<key>CFBundleDisplayName</key>
-	<string>AquaFlowSupplier</string>
+	<string>Aqua Flow Supplier</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
