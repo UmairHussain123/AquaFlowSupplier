@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {useDispatch, useSelector} from 'react-redux';
+import LinearGradient from 'react-native-linear-gradient';
 import Toast from 'react-native-toast-message';
 
 import {Colors} from '../../../Constant/Colors';
@@ -152,6 +153,13 @@ const CatalogScreen: React.FC = () => {
           activeOpacity={0.85}
           onPress={() => navigation.navigate(Route.ProductFormScreen, {})}
           style={styles.add}>
+          <LinearGradient
+            colors={[Colors.gradFrom, Colors.gradTo]}
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 1}}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
           <PlusIcon color={Colors.white} size={15} />
           <Text style={styles.addText}>Add product</Text>
         </TouchableOpacity>
@@ -303,29 +311,43 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: Colors.white,
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingTop: 20,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
     flexDirection: 'row',
     alignItems: 'center',
+    shadowColor: 'rgba(11,27,43,1)',
+    shadowOpacity: 0.05,
+    shadowRadius: 22,
+    shadowOffset: {width: 0, height: 8},
+    elevation: 3,
+    zIndex: 2,
   },
   title: {
     flex: 1,
-    fontSize: 19,
+    fontSize: 25,
     fontWeight: '800',
-    letterSpacing: -0.4,
+    letterSpacing: -0.7,
     color: Colors.text,
   },
   add: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
+    gap: 7,
+    height: 40,
+    borderRadius: 14,
+    paddingHorizontal: 15,
+    overflow: 'hidden',
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.26,
+    shadowRadius: 18,
+    shadowOffset: {width: 0, height: 8},
+    elevation: 3,
   },
-  addText: {color: Colors.white, fontSize: 13, fontWeight: '800'},
+  addText: {color: Colors.white, fontSize: 13.5, fontWeight: '800'},
 
-  body: {padding: 20, gap: 12, paddingBottom: 30},
+  body: {padding: 18, gap: 12, paddingBottom: 30},
   filters: {gap: 10, marginBottom: 2},
   chips: {gap: 7, paddingRight: 20},
 

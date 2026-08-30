@@ -30,12 +30,14 @@ const styles = StyleSheet.create({
   title: {fontSize: 16, fontWeight: '800', color: Colors.text},
   spacer: {flex: 1},
   badge: {
-    backgroundColor: Colors.danger,
+    backgroundColor: Colors.dangerBg,
     borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 2,
+    minWidth: 22,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    alignItems: 'center',
   },
-  badgeText: {color: Colors.white, fontSize: 12, fontWeight: '800'},
+  badgeText: {color: Colors.danger, fontSize: 11.5, fontWeight: '800'},
   action: {fontSize: 12.5, fontWeight: '800', color: Colors.primary},
 });
 

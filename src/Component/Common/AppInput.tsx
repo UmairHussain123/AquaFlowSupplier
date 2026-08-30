@@ -111,27 +111,29 @@ const AppInput: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  wrap: {gap: 6},
+  wrap: {gap: 7},
   label: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: Colors.textMuted,
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textSecondary,
   },
   field: {
-    minHeight: 46,
+    minHeight: 52,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 11,
-    paddingHorizontal: 13,
+    borderRadius: 15,
+    paddingHorizontal: 15,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    backgroundColor: Colors.fieldBg,
+  },
+  fieldMultiline: {minHeight: 104, alignItems: 'flex-start', paddingVertical: 13},
+  fieldFocused: {
+    borderColor: Colors.primary,
+    borderWidth: 1.5,
     backgroundColor: Colors.white,
   },
-  fieldMultiline: {minHeight: 96, alignItems: 'flex-start', paddingVertical: 10},
-  fieldFocused: {borderColor: Colors.primary, borderWidth: 1.5},
   fieldError: {borderColor: Colors.danger},
   fieldDisabled: {backgroundColor: Colors.surface3},
   input: {

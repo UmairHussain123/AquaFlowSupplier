@@ -21,9 +21,16 @@ import InfoNote from '../../Component/Common/InfoNote';
 import OptionCard from '../../Component/Common/OptionCard';
 import PasswordChecklist from '../../Component/Common/PasswordChecklist';
 import ProgressSteps from '../../Component/Common/ProgressSteps';
-import {ChevronLeft} from '../../Component/Icons/TabIcons';
-import {APPLY_STEPS, applySchema} from '../../Formik/ApplySchema';
+import {ChevronLeft, PinIcon} from '../../Component/Icons/TabIcons';
+import {
+  APPLY_STEPS,
+  CNIC_MAX_DIGITS,
+  applySchema,
+  formatCnic,
+} from '../../Formik/ApplySchema';
 import {apiErrorMessage} from '../../helper/helperFunction';
+import {formatCoordinate, getCurrentCoordinates} from '../../helper/locationHelper';
+import {PermissionError, permissionAlert} from '../../helper/permissionHelper';
 import {
   DEFAULT_OPS_DRAFT,
   clearApplicationDraft,
@@ -83,6 +90,7 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const [error, setError] = useState<string | null>(null);
   const [ops, setOps] = useState<OpsDraft>(DEFAULT_OPS_DRAFT);
   const [documents, setDocuments] = useState<Record<string, PickedFile[]>>({});
+  const [locating, setLocating] = useState(false);
 
   const formik = useFormik({
     initialValues,
@@ -215,6 +223,30 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const fieldError = (name: keyof typeof initialValues) =>
     (formik.touched as any)[name] && (formik.errors as any)[name];
 
+  /** Fills the pin from the device's GPS — the fields stay editable after. */
+  const useCurrentLocation = async () => {
+    setLocating(true);
+    try {
+      const {latitude, longitude} = await getCurrentCoordinates();
+      formik.setFieldValue('shop_latitude', formatCoordinate(latitude));
+      formik.setFieldValue('shop_longitude', formatCoordinate(longitude));
+      Toast.show({type: 'success', text1: 'Pin set to your current location'});
+    } catch (err) {
+      const fallback = 'Could not read your location. Enter the pin by hand.';
+
+      if (err instanceof PermissionError && err.openSettings) {
+        permissionAlert('Location is off', err, fallback);
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: err instanceof PermissionError ? err.message : fallback,
+        });
+      }
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const toggleDay = (day: number) =>
     setOps(prev => ({
       ...prev,
@@ -340,8 +372,14 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
                   <AppInput
                     label="CNIC number"
                     value={formik.values.cnic_number}
-                    onChangeText={formik.handleChange('cnic_number')}
+                    onChangeText={value =>
+                      formik.setFieldValue('cnic_number', formatCnic(value))
+                    }
+                    onBlur={formik.handleBlur('cnic_number')}
+                    error={fieldError('cnic_number')}
                     placeholder="42101-1234567-1"
+                    keyboardType="number-pad"
+                    maxLength={CNIC_MAX_DIGITS + 2}
                     mono
                   />
                   <AppInput
@@ -355,7 +393,19 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
               </Card>
 
               <Card>
-                <Text style={styles.cardTitle}>Shop location</Text>
+                <View style={styles.cardHead}>
+                  <Text style={styles.cardTitle}>Shop location</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    disabled={locating}
+                    onPress={useCurrentLocation}
+                    style={[styles.gpsButton, locating && styles.gpsBusy]}>
+                    <PinIcon color={Colors.primary} size={14} />
+                    <Text style={styles.gpsText}>
+                      {locating ? 'Locating…' : 'Use current location'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
                 <View style={styles.cardBody}>
                   <AppInput
                     label="Address"
@@ -614,9 +664,17 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: Colors.white,
     paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 16,
+    paddingTop: 16,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
     gap: 13,
+    shadowColor: 'rgba(11,27,43,1)',
+    shadowOpacity: 0.05,
+    shadowRadius: 22,
+    shadowOffset: {width: 0, height: 8},
+    elevation: 3,
+    zIndex: 2,
   },
   headerRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
   headerTitle: {flex: 1, fontSize: 16.5, fontWeight: '800', color: Colors.text},
@@ -641,6 +699,23 @@ const styles = StyleSheet.create({
   },
   strong: {color: Colors.text, fontWeight: '800'},
   cardTitle: {fontSize: 14.5, fontWeight: '800', color: Colors.text},
+  cardHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  gpsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    backgroundColor: Colors.primaryTint,
+  },
+  gpsBusy: {opacity: 0.6},
+  gpsText: {fontSize: 12.5, fontWeight: '800', color: Colors.primary},
   cardBody: {gap: 12, marginTop: 12},
   pair: {flexDirection: 'row', gap: 10},
   helper: {fontSize: 12, color: Colors.textSecondary, lineHeight: 18},

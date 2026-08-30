@@ -12,6 +12,7 @@ import {
 import {useFormik} from 'formik';
 import {useDispatch} from 'react-redux';
 import Toast from 'react-native-toast-message';
+import LinearGradient from 'react-native-linear-gradient';
 
 import {Colors} from '../../Constant/Colors';
 import Route from '../../Constant/NavigationStrings';
@@ -25,6 +26,7 @@ import {loginRequest} from '../../Server/User';
 import {listShops} from '../../Server/Shops/ShopsApi';
 import {apiErrorMessage} from '../../helper/helperFunction';
 import {PlusIcon} from '../../Component/Icons/TabIcons';
+import {WaterJarArt} from '../../Component/Icons/Illustrations';
 
 /**
  * SA1 — Login.
@@ -72,18 +74,30 @@ const Login: React.FC<{navigation: any}> = ({navigation}) => {
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" />
 
-      <View style={styles.header}>
+      <LinearGradient
+        colors={[Colors.heroFrom, Colors.heroTo]}
+        start={{x: 0.15, y: 0}}
+        end={{x: 0.85, y: 1}}
+        style={styles.header}>
+        <View style={styles.headerArt} pointerEvents="none">
+          <WaterJarArt width={178} />
+        </View>
+
         <View style={styles.brandRow}>
           <BrandLogo size={30} />
           <Text style={styles.brand}>
             Aqua Flow <Text style={styles.brandSub}>Supplier</Text>
           </Text>
         </View>
-        <Text style={styles.headline}>Run your water shop from your phone</Text>
-        <Text style={styles.subhead}>
-          Orders, stock, jar returns and payouts in one place.
-        </Text>
-      </View>
+        <View style={styles.headline}>
+          <Text style={styles.headlineText}>
+            Run your water shop from your phone
+          </Text>
+          <Text style={styles.subhead}>
+            Orders, stock, jar returns and payouts in one place.
+          </Text>
+        </View>
+      </LinearGradient>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -171,30 +185,33 @@ const styles = StyleSheet.create({
   flex: {flex: 1},
 
   header: {
-    backgroundColor: Colors.primaryDark,
     paddingHorizontal: 22,
-    paddingTop: 28,
-    paddingBottom: 26,
+    paddingTop: 30,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    overflow: 'hidden',
   },
+  headerArt: {position: 'absolute', right: -18, bottom: -16, opacity: 0.92},
   brandRow: {flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18},
   brand: {fontWeight: '800', fontSize: 17, color: Colors.white},
   brandSub: {color: Colors.textOnDark2, fontWeight: '700'},
-  headline: {
-    fontSize: 25,
+  headline: {maxWidth: 232, gap: 9},
+  headlineText: {
+    fontSize: 28,
     fontWeight: '800',
-    letterSpacing: -0.6,
-    lineHeight: 30,
+    letterSpacing: -0.9,
+    lineHeight: 33,
     color: Colors.white,
   },
   subhead: {
     fontSize: 13.5,
     color: Colors.textOnDark,
-    marginTop: 8,
     lineHeight: 20,
   },
 
-  body: {padding: 22, gap: 14, paddingBottom: 40},
-  signIn: {height: 54, borderRadius: 14, marginTop: 2},
+  body: {padding: 20, gap: 13, paddingBottom: 40},
+  signIn: {marginTop: 2},
   apiError: {
     fontSize: 13,
     color: Colors.danger,
@@ -210,16 +227,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: Colors.borderDashed,
-    borderRadius: 15,
-    padding: 16,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    padding: 15,
     flexDirection: 'row',
     gap: 13,
     alignItems: 'center',
   },
   applyGlyph: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: Colors.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
@@ -232,7 +250,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  staffNote: {backgroundColor: Colors.surface, borderRadius: 13, padding: 14},
+  staffNote: {backgroundColor: Colors.noteSoft, borderRadius: 16, padding: 14},
   staffText: {fontSize: 12.5, color: Colors.textSecondary, lineHeight: 19},
 
   footer: {

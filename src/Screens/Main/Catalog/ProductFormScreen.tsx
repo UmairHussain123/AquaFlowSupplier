@@ -310,10 +310,15 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 20,
     paddingTop: 14,
-    paddingBottom: 18,
+    paddingBottom: 20,
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSoft,
+    shadowColor: 'rgba(11,27,43,1)',
+    shadowOpacity: 0.07,
+    shadowRadius: 26,
+    shadowOffset: {width: 0, height: -8},
+    elevation: 12,
   },
 });
 

@@ -28,6 +28,13 @@ jest.mock('react-native-device-info', () => ({
   getVersion: jest.fn(() => '0.0.1'),
 }));
 
+jest.mock('@react-native-community/geolocation', () => ({
+  getCurrentPosition: jest.fn(),
+  requestAuthorization: jest.fn(success => success()),
+  watchPosition: jest.fn(() => 0),
+  clearWatch: jest.fn(),
+}));
+
 jest.mock('react-native-image-picker', () => ({
   launchCamera: jest.fn(async () => ({didCancel: true})),
   launchImageLibrary: jest.fn(async () => ({didCancel: true})),

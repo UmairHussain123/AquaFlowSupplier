@@ -25,7 +25,7 @@ const InfoNote: React.FC<{children: React.ReactNode; tone?: NoteTone}> = ({
 };
 
 const styles = StyleSheet.create({
-  note: {borderRadius: 13, padding: 13},
+  note: {borderRadius: 18, padding: 14},
   text: {fontSize: 12.5, lineHeight: 19},
 });
 

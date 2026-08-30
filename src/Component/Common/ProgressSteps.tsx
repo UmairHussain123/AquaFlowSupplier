@@ -27,8 +27,8 @@ const ProgressSteps: React.FC<{
 );
 
 const styles = StyleSheet.create({
-  row: {flexDirection: 'row', gap: 6},
-  bar: {flex: 1, height: 5, borderRadius: 3},
+  row: {flexDirection: 'row', gap: 7},
+  bar: {flex: 1, height: 7, borderRadius: 4},
 });
 
 export default ProgressSteps;

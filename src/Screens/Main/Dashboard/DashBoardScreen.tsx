@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
+import LinearGradient from 'react-native-linear-gradient';
 import {useDispatch, useSelector} from 'react-redux';
 import Toast from 'react-native-toast-message';
 
@@ -22,6 +23,7 @@ import OrderCard from '../../../Component/Cards/OrderCard';
 import {HeaderStat, StatTile} from '../../../Component/Cards/StatTile';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
 import {BellIcon, ChevronRight} from '../../../Component/Icons/TabIcons';
+import {RippleArt} from '../../../Component/Icons/Illustrations';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
 import {
   selectActiveShop,
@@ -125,7 +127,15 @@ const DashBoardScreen: React.FC = () => {
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" />
 
-      <View style={styles.header}>
+      <LinearGradient
+        colors={[Colors.heroFrom, Colors.heroTo]}
+        start={{x: 0.1, y: 0}}
+        end={{x: 0.9, y: 1}}
+        style={styles.header}>
+        <View style={styles.ripple} pointerEvents="none">
+          <RippleArt size={150} />
+        </View>
+
         <View style={styles.headerRow}>
           <View style={styles.headerTitles}>
             <Text style={styles.headerKicker}>Supplier</Text>
@@ -144,6 +154,7 @@ const DashBoardScreen: React.FC = () => {
           <ShopStatusPill
             label={shopStatusLabel(shop)}
             open={!!shop?.is_open && shop?.status === 'active'}
+            onDark
           />
         </View>
 
@@ -155,7 +166,7 @@ const DashBoardScreen: React.FC = () => {
             label="Rs today"
           />
         </View>
-      </View>
+      </LinearGradient>
 
       <ScrollView
         contentContainerStyle={styles.body}
@@ -265,11 +276,14 @@ const styles = StyleSheet.create({
   flex: {flex: 1},
 
   header: {
-    backgroundColor: Colors.primaryDark,
     paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 20,
+    paddingTop: 18,
+    paddingBottom: 22,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    overflow: 'hidden',
   },
+  ripple: {position: 'absolute', right: -26, top: -22, opacity: 0.16},
   headerRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
   headerTitles: {flex: 1, minWidth: 0},
   headerKicker: {
@@ -287,7 +301,7 @@ const styles = StyleSheet.create({
 
   alert: {
     backgroundColor: Colors.warningBg,
-    borderRadius: 15,
+    borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 13,
     flexDirection: 'row',

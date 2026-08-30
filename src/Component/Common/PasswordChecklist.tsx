@@ -23,8 +23,8 @@ const PasswordChecklist: React.FC<{value: string}> = ({value}) => (
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: Colors.surface,
-    borderRadius: 13,
+    backgroundColor: Colors.noteSoft,
+    borderRadius: 16,
     padding: 13,
     gap: 8,
   },

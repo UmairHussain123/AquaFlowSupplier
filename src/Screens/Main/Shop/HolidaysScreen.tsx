@@ -259,7 +259,8 @@ const styles = StyleSheet.create({
   datePicker: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 11,
+    borderRadius: 15,
+    backgroundColor: Colors.fieldBg,
     padding: 13,
     gap: 4,
   },

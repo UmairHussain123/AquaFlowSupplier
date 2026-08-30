@@ -245,10 +245,11 @@ const styles = StyleSheet.create({
   times: {flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12},
   time: {
     flex: 1,
-    height: 44,
+    height: 46,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 11,
+    borderRadius: 14,
+    backgroundColor: Colors.fieldBg,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {useDispatch, useSelector} from 'react-redux';
+import LinearGradient from 'react-native-linear-gradient';
 import Toast from 'react-native-toast-message';
 
 import {Colors} from '../../../Constant/Colors';
@@ -149,11 +150,15 @@ const ShopScreen: React.FC = () => {
         }>
         <Card>
           <View style={styles.identity}>
-            <View style={styles.logo}>
+            <LinearGradient
+              colors={[Colors.gradFrom, Colors.gradTo]}
+              start={{x: 0, y: 0}}
+              end={{x: 1, y: 1}}
+              style={styles.logo}>
               <Text style={styles.logoText}>
                 {initials(shop?.public_name ?? user?.name)}
               </Text>
-            </View>
+            </LinearGradient>
             <View style={styles.flex}>
               <Text style={styles.shopName} numberOfLines={1}>
                 {shop?.public_name ?? user?.name ?? 'Your shop'}
@@ -203,9 +208,11 @@ const ShopScreen: React.FC = () => {
           </Text>
           <View style={styles.statusActions}>
             <TouchableOpacity
-              style={styles.softAction}
+              style={[styles.softAction, styles.softActionPrimary]}
               onPress={() => navigation.navigate(Route.BusinessHoursScreen)}>
-              <Text style={styles.softActionText}>Edit hours</Text>
+              <Text style={[styles.softActionText, styles.softActionPrimaryText]}>
+                Edit hours
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.softAction}
@@ -274,25 +281,42 @@ const ShopScreen: React.FC = () => {
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: Colors.surface},
   flex: {flex: 1},
-  header: {paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10},
+  header: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    shadowColor: 'rgba(11,27,43,1)',
+    shadowOpacity: 0.05,
+    shadowRadius: 22,
+    shadowOffset: {width: 0, height: 8},
+    elevation: 3,
+    zIndex: 2,
+  },
   title: {
-    fontSize: 22,
+    fontSize: 25,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: -0.7,
     color: Colors.text,
   },
-  body: {paddingHorizontal: 20, paddingBottom: 30, gap: 12},
+  body: {paddingHorizontal: 18, paddingTop: 16, paddingBottom: 30, gap: 11},
 
   identity: {flexDirection: 'row', alignItems: 'center', gap: 13},
   logo: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: Colors.primaryTint,
+    width: 54,
+    height: 54,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoText: {fontSize: 17, fontWeight: '800', color: Colors.primary},
+  logoText: {
+    fontSize: 19,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    color: Colors.white,
+  },
   shopName: {fontSize: 15.5, fontWeight: '800', color: Colors.text},
   shopMeta: {fontSize: 12, color: Colors.textSecondary, marginTop: 2},
   verified: {fontSize: 12, color: Colors.success, fontWeight: '700', marginTop: 3},
@@ -305,11 +329,13 @@ const styles = StyleSheet.create({
   softAction: {
     flex: 1,
     backgroundColor: Colors.surface3,
-    borderRadius: 11,
-    paddingVertical: 11,
+    borderRadius: 14,
+    paddingVertical: 13,
     alignItems: 'center',
   },
-  softActionText: {fontSize: 12.5, fontWeight: '800', color: Colors.slate},
+  softActionPrimary: {backgroundColor: Colors.primaryTint},
+  softActionText: {fontSize: 13.5, fontWeight: '800', color: Colors.slate},
+  softActionPrimaryText: {color: Colors.primary},
 });
 
 export default ShopScreen;

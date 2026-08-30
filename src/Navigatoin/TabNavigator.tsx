@@ -2,6 +2,7 @@
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import LinearGradient from 'react-native-linear-gradient';
 
 import Route from '../Constant/NavigationStrings';
 import {Colors} from '../Constant/Colors';
@@ -43,6 +44,28 @@ const TABS: TabDef[] = [
   {name: Route.ShopScreen, component: ShopScreen, label: 'Shop', Icon: ShopIcon},
 ];
 
+/**
+ * v2 sits every tab icon in a rounded tile — filled with the teal→blue ramp
+ * when the tab is focused, a soft blue-grey when it isn't.
+ */
+const TabTile: React.FC<{focused: boolean; Icon: TabDef['Icon']}> = ({
+  focused,
+  Icon,
+}) =>
+  focused ? (
+    <LinearGradient
+      colors={[Colors.gradFrom, Colors.gradTo]}
+      start={{x: 0, y: 0}}
+      end={{x: 1, y: 1}}
+      style={styles.tile}>
+      <Icon color={Colors.white} size={19} />
+    </LinearGradient>
+  ) : (
+    <View style={[styles.tile, styles.tileIdle]}>
+      <Icon color={Colors.textMuted} size={19} />
+    </View>
+  );
+
 const TabNavigator: React.FC = () => (
   <Tab.Navigator
     screenOptions={{
@@ -58,9 +81,7 @@ const TabNavigator: React.FC = () => (
         name={name}
         component={component}
         options={{
-          tabBarIcon: ({focused}) => (
-            <Icon color={focused ? Colors.primary : Colors.textMuted} size={22} />
-          ),
+          tabBarIcon: ({focused}) => <TabTile focused={focused} Icon={Icon} />,
           tabBarLabel: ({focused}) => (
             <View>
               <Text
@@ -81,11 +102,24 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSoft,
-    height: 66,
-    paddingTop: 8,
-    paddingBottom: 10,
+    height: 76,
+    paddingTop: 11,
+    paddingBottom: 12,
+    shadowColor: 'rgba(11,27,43,1)',
+    shadowOpacity: 0.06,
+    shadowRadius: 26,
+    shadowOffset: {width: 0, height: -8},
+    elevation: 12,
   },
-  item: {gap: 2},
+  item: {gap: 5},
+  tile: {
+    width: 40,
+    height: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileIdle: {backgroundColor: Colors.surfaceSoft},
   label: {fontSize: 10.5, fontWeight: '700', color: Colors.textMuted},
   labelActive: {fontWeight: '800', color: Colors.primary},
 });

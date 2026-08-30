@@ -106,8 +106,8 @@ const styles = StyleSheet.create({
   customer: {fontSize: 15, fontWeight: '800', color: Colors.text},
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 7},
   actions: {flexDirection: 'row', gap: 10, marginTop: 12},
-  accept: {height: 46, borderRadius: 12},
-  reject: {width: 100, height: 46, borderRadius: 12},
+  accept: {height: 46, borderRadius: 14},
+  reject: {width: 104, height: 46, borderRadius: 14},
 });
 
 export default OrderCard;

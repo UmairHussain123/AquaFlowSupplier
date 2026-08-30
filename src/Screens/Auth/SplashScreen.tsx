@@ -4,6 +4,7 @@ import {useDispatch, useSelector} from 'react-redux';
 import Route from '../../Constant/NavigationStrings';
 import {Colors} from '../../Constant/Colors';
 import BrandLogo from '../../Component/Icons/BrandLogo';
+import {WaterJarArt} from '../../Component/Icons/Illustrations';
 import {getToken} from '../../helper/TokenStorageHelper';
 import {listShops} from '../../Server/Shops/ShopsApi';
 import {setShops, shopsFailed} from '../../Redux/slices/shopSlice';
@@ -54,6 +55,10 @@ const SplashScreen: React.FC<{navigation: any}> = ({navigation}) => {
 
   return (
     <View style={styles.wrap}>
+      <View style={styles.art} pointerEvents="none">
+        <WaterJarArt width={230} />
+      </View>
+
       <BrandLogo size={72} />
       <Text style={styles.name}>
         Aqua Flow <Text style={styles.sub}>Supplier</Text>
@@ -66,11 +71,12 @@ const SplashScreen: React.FC<{navigation: any}> = ({navigation}) => {
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 14,
   },
+  art: {position: 'absolute', right: -54, bottom: -40, opacity: 0.16},
   name: {fontSize: 22, fontWeight: '800', color: Colors.text},
   sub: {color: Colors.textSecondary, fontWeight: '700'},
   spinner: {marginTop: 12},

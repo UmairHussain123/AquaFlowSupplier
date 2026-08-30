@@ -161,9 +161,9 @@ const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: Colors.surface},
   newButton: {
     backgroundColor: Colors.primary,
-    borderRadius: 10,
+    borderRadius: 999,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
   newButtonText: {color: Colors.white, fontSize: 12.5, fontWeight: '800'},
 

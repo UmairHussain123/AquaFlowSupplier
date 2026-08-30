@@ -53,6 +53,31 @@
         }
       }
     },
+    "@react-native-community/geolocation": {
+      "root": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/@react-native-community/geolocation",
+      "name": "@react-native-community/geolocation",
+      "platforms": {
+        "ios": {
+          "podspecPath": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/@react-native-community/geolocation/react-native-geolocation.podspec",
+          "version": "3.4.0",
+          "configurations": [],
+          "scriptPhases": []
+        },
+        "android": {
+          "sourceDir": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/@react-native-community/geolocation/android",
+          "packageImportPath": "import com.reactnativecommunity.geolocation.GeolocationPackage;",
+          "packageInstance": "new GeolocationPackage()",
+          "buildTypes": [],
+          "libraryName": "RNCGeolocationSpec",
+          "componentDescriptors": [],
+          "cmakeListsPath": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/@react-native-community/geolocation/android/build/generated/source/codegen/jni/CMakeLists.txt",
+          "cxxModuleCMakeListsModuleName": null,
+          "cxxModuleCMakeListsPath": null,
+          "cxxModuleHeaderName": null,
+          "isPureCxxDependency": false
+        }
+      }
+    },
     "@react-native-community/netinfo": {
       "root": "/Users/muhammadhanan/Documents/GitHub/AquaFlowSupplier/node_modules/@react-native-community/netinfo",
       "name": "@react-native-community/netinfo",
@@ -560,7 +585,7 @@
         {
           "name": "--terminal <string>",
           "description": "Launches the Metro Bundler in a new window using the specified terminal path.",
-          "default": "vscode"
+          "default": "claude-desktop"
         },
         {
           "name": "--binary-path <string>",
@@ -728,7 +753,7 @@
         {
           "name": "--terminal <string>",
           "description": "Launches the Metro Bundler in a new window using the specified terminal path.",
-          "default": "vscode"
+          "default": "claude-desktop"
         },
         {
           "name": "--appId <string>",

@@ -56,16 +56,31 @@ const AppHeader: React.FC<Props> = ({
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: Colors.white,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 13,
+    shadowColor: 'rgba(11,27,43,1)',
+    shadowOpacity: 0.05,
+    shadowRadius: 22,
+    shadowOffset: {width: 0, height: 8},
+    elevation: 3,
+    zIndex: 2,
   },
-  back: {paddingRight: 2},
+  back: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: Colors.surfaceSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   titles: {flex: 1},
   title: {fontSize: 16.5, fontWeight: '800', color: Colors.text},
-  subtitle: {fontSize: 12, color: Colors.textSecondary, marginTop: 2},
+  subtitle: {fontSize: 12, color: Colors.textSecondary, marginTop: 3},
 });
 
 export default AppHeader;

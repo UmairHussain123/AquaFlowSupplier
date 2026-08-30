@@ -20,7 +20,7 @@ const QuantityStepper: React.FC<{
     <View
       style={[
         styles.row,
-        {backgroundColor: warn ? Colors.warningBg : Colors.surface},
+        {backgroundColor: warn ? Colors.warningBg : Colors.fieldBg},
       ]}>
       <Text
         style={[styles.label, warn && {color: Colors.warningText, fontWeight: '800'}]}>
@@ -32,18 +32,20 @@ const QuantityStepper: React.FC<{
           disabled={disabled || value <= min}
           onPress={() => onChange(Math.max(min, value - 1))}
           hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
-          style={value <= min && styles.dim}>
-          <MinusIcon color={Colors.primary} size={20} />
+          style={[styles.step, styles.stepIdle, value <= min && styles.dim]}>
+          <MinusIcon color={Colors.slate} size={18} />
         </TouchableOpacity>
 
-        <Text style={styles.value}>{value}</Text>
+        <Text style={[styles.value, warn && {color: Colors.warningText}]}>
+          {value}
+        </Text>
 
         <TouchableOpacity
           disabled={disabled || value >= max}
           onPress={() => onChange(Math.min(max, value + 1))}
           hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
-          style={value >= max && styles.dim}>
-          <PlusIcon color={Colors.primary} size={20} />
+          style={[styles.step, styles.stepAdd, value >= max && styles.dim]}>
+          <PlusIcon color={Colors.primary} size={18} />
         </TouchableOpacity>
       </View>
     </View>
@@ -52,14 +54,23 @@ const QuantityStepper: React.FC<{
 
 const styles = StyleSheet.create({
   row: {
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
   label: {flex: 1, fontSize: 13, color: Colors.textSecondary},
-  controls: {flexDirection: 'row', alignItems: 'center', gap: 15},
+  controls: {flexDirection: 'row', alignItems: 'center', gap: 10},
+  step: {
+    width: 40,
+    height: 40,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepIdle: {backgroundColor: Colors.surface3},
+  stepAdd: {backgroundColor: Colors.primaryTint},
   value: {
     fontFamily: Fonts.mono,
     fontSize: 17,

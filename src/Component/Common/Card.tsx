@@ -26,11 +26,11 @@ const Card: React.FC<Props> = ({children, highlighted, flush, style}) => (
 const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.white,
-    borderRadius: 16,
+    borderRadius: 20,
     shadowColor: 'rgba(11,27,43,1)',
-    shadowOpacity: 0.05,
-    shadowRadius: 18,
-    shadowOffset: {width: 0, height: 5},
+    shadowOpacity: 0.06,
+    shadowRadius: 24,
+    shadowOffset: {width: 0, height: 8},
     elevation: 2,
   },
   padded: {padding: 15},

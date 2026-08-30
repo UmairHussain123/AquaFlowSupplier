@@ -195,8 +195,8 @@ const styles = StyleSheet.create({
 
   bubble: {
     backgroundColor: Colors.white,
-    borderRadius: 14,
-    padding: 13,
+    borderRadius: 18,
+    padding: 14,
     gap: 4,
     alignSelf: 'flex-start',
     maxWidth: '92%',

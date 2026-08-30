@@ -1,7 +1,6 @@
 import React from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {Colors} from '../../Constant/Colors';
-import {Fonts} from '../../Constant/Fonts';
 import {formatMoney, toNumber} from '../../helper/helperFunction';
 import {
   isLowStock,
@@ -11,6 +10,7 @@ import {
   returnModeLabel,
   type ShopProduct,
 } from '../../Server/Product/ProductsApi';
+import {JarGlyph} from '../Icons/Illustrations';
 import AppSwitch from '../Common/AppSwitch';
 import Card from '../Common/Card';
 
@@ -35,9 +35,7 @@ const ProductCard: React.FC<{
           onPress={onPress}
           style={styles.headMain}>
           <View style={[styles.badge, out && styles.badgeDim]}>
-            <Text style={[styles.badgeText, out && styles.badgeTextDim]}>
-              {productSize(listing.product)}
-            </Text>
+            <JarGlyph size={26} dim={out} />
           </View>
 
           <View style={styles.titles}>
@@ -50,7 +48,7 @@ const ProductCard: React.FC<{
               </Text>
             ) : (
               <Text style={styles.subtitle} numberOfLines={1}>
-                {formatMoney(listing.price)}
+                {productSize(listing.product)} · {formatMoney(listing.price)}
                 {deposit > 0 ? ` · deposit ${formatMoney(deposit)}` : ''} ·{' '}
                 {returnModeLabel(listing.return_mode)}
               </Text>
@@ -84,16 +82,14 @@ const styles = StyleSheet.create({
   head: {flexDirection: 'row', alignItems: 'center', gap: 12},
   headMain: {flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12},
   badge: {
-    width: 46,
-    height: 54,
-    borderRadius: 11,
+    width: 58,
+    height: 58,
+    borderRadius: 18,
     backgroundColor: Colors.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeDim: {backgroundColor: Colors.surface2},
-  badgeText: {fontFamily: Fonts.mono, fontSize: 11, color: Colors.primary},
-  badgeTextDim: {color: Colors.textMuted},
+  badgeDim: {backgroundColor: Colors.surface3},
   titles: {flex: 1},
   title: {fontSize: 15, fontWeight: '800', color: Colors.text},
   subtitle: {fontSize: 12.5, color: Colors.textSecondary, marginTop: 2},
@@ -104,10 +100,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   stock: {
-    marginTop: 12,
-    borderRadius: 11,
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 13,
+    marginTop: 13,
+    borderRadius: 15,
+    backgroundColor: Colors.surface3,
+    paddingHorizontal: 14,
     paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',

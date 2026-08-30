@@ -1,9 +1,14 @@
 import React from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
+import Toast from 'react-native-toast-message';
 import {Colors} from '../../../Constant/Colors';
 import {Fonts} from '../../../Constant/Fonts';
 import {CheckIcon, PlusIcon} from '../../../Component/Icons/TabIcons';
+import {
+  ensureCameraPermission,
+  permissionAlert,
+} from '../../../helper/permissionHelper';
 
 export interface PickedFile {
   uri: string;
@@ -27,13 +32,56 @@ const DocumentPicker: React.FC<{
   const done = files.length > 0;
 
   const add = async (source: 'camera' | 'library') => {
-    const options = {mediaType: 'photo' as const, quality: 0.8 as const};
-    const result =
-      source === 'camera'
-        ? await launchCamera(options)
-        : await launchImageLibrary({...options, selectionLimit: 0});
+    if (source === 'camera') {
+      try {
+        // The manifest declares CAMERA, so the grant has to be in hand before
+        // the picker is opened at all.
+        await ensureCameraPermission();
+      } catch (error) {
+        permissionAlert(
+          'Camera is blocked',
+          error,
+          'Could not open the camera. Choose an existing photo instead.',
+        );
+        return;
+      }
+    }
 
-    if (result.didCancel || !result.assets?.length) return;
+    const options = {mediaType: 'photo' as const, quality: 0.8 as const};
+
+    let result;
+    try {
+      result =
+        source === 'camera'
+          ? await launchCamera(options)
+          : await launchImageLibrary({...options, selectionLimit: 0});
+    } catch {
+      Toast.show({
+        type: 'error',
+        text1:
+          source === 'camera'
+            ? 'Could not open the camera.'
+            : 'Could not open your photos.',
+      });
+      return;
+    }
+
+    if (result.didCancel) return;
+
+    if (result.errorCode) {
+      Toast.show({
+        type: 'error',
+        text1:
+          result.errorCode === 'permission'
+            ? 'Aqua Flow needs permission for that. Allow it in Settings and try again.'
+            : result.errorCode === 'camera_unavailable'
+            ? 'No camera is available on this device.'
+            : result.errorMessage ?? 'Could not attach that file.',
+      });
+      return;
+    }
+
+    if (!result.assets?.length) return;
 
     const picked = result.assets
       .filter(asset => !!asset.uri)
@@ -111,9 +159,9 @@ const styles = StyleSheet.create({
   cardRequired: {borderWidth: 1.5, borderColor: Colors.primary},
   head: {flexDirection: 'row', alignItems: 'center', gap: 12},
   glyph: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
+    width: 42,
+    height: 42,
+    borderRadius: 14,
     backgroundColor: Colors.primaryTint,
     alignItems: 'center',
     justifyContent: 'center',

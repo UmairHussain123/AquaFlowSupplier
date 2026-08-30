@@ -1,6 +1,7 @@
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import {Colors} from '../../Constant/Colors';
+import {JarGlyph} from '../Icons/Illustrations';
 import AppButton from './AppButton';
 
 const EmptyState: React.FC<{
@@ -10,7 +11,9 @@ const EmptyState: React.FC<{
   onAction?: () => void;
 }> = ({title, message, actionLabel, onAction}) => (
   <View style={styles.wrap}>
-    <View style={styles.glyph} />
+    <View style={styles.glyph}>
+      <JarGlyph size={28} />
+    </View>
     <Text style={styles.title}>{title}</Text>
     {!!message && <Text style={styles.message}>{message}</Text>}
     {!!actionLabel && (
@@ -29,10 +32,12 @@ const EmptyState: React.FC<{
 const styles = StyleSheet.create({
   wrap: {alignItems: 'center', paddingVertical: 46, paddingHorizontal: 24},
   glyph: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
+    width: 68,
+    height: 68,
+    borderRadius: 22,
     backgroundColor: Colors.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 14,
   },
   title: {fontSize: 15.5, fontWeight: '800', color: Colors.text},

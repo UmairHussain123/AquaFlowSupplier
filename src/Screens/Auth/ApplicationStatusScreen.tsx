@@ -230,7 +230,13 @@ const ApplicationStatusScreen: React.FC<{navigation: any; route: any}> = ({
 
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: Colors.surface},
-  header: {backgroundColor: Colors.primaryDark, padding: 20, gap: 12},
+  header: {
+    backgroundColor: Colors.heroTo,
+    padding: 20,
+    gap: 12,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+  },
   headerRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
   headerTitle: {flex: 1, fontSize: 16.5, fontWeight: '800', color: Colors.white},
   headerMeta: {

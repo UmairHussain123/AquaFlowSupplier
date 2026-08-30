@@ -166,3 +166,16 @@ export const BellIcon: React.FC<IconProps> = ({size = 20, color}) => (
     />
   </Svg>
 );
+
+export const PinIcon: React.FC<IconProps> = ({size = 16, color}) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Path
+      d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.9}
+      strokeLinejoin="round"
+    />
+    <Circle cx={12} cy={10} r={2.6} fill="none" stroke={color} strokeWidth={1.9} />
+  </Svg>
+);

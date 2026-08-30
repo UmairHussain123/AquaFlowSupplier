@@ -16,7 +16,7 @@ const AppSwitch: React.FC<{
     onPress={() => onValueChange(!value)}
     style={[
       styles.track,
-      {backgroundColor: value ? Colors.success : Colors.borderIdle},
+      {backgroundColor: value ? Colors.primary : Colors.chipIdle},
       value ? styles.on : styles.off,
       disabled && styles.disabled,
     ]}>
@@ -26,8 +26,8 @@ const AppSwitch: React.FC<{
 
 const styles = StyleSheet.create({
   track: {
-    width: 44,
-    height: 26,
+    width: 48,
+    height: 28,
     borderRadius: 999,
     padding: 3,
     flexDirection: 'row',
@@ -35,7 +35,17 @@ const styles = StyleSheet.create({
   },
   on: {justifyContent: 'flex-end'},
   off: {justifyContent: 'flex-start'},
-  knob: {width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.white},
+  knob: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.white,
+    shadowColor: 'rgba(11,27,43,1)',
+    shadowOpacity: 0.22,
+    shadowRadius: 5,
+    shadowOffset: {width: 0, height: 2},
+    elevation: 2,
+  },
   disabled: {opacity: 0.5},
 });
 

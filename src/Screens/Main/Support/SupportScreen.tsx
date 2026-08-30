@@ -216,16 +216,21 @@ const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: Colors.surface},
   newButton: {
     backgroundColor: Colors.primary,
-    borderRadius: 10,
+    borderRadius: 999,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 9,
   },
   newButtonText: {color: Colors.white, fontSize: 12.5, fontWeight: '800'},
 
   body: {padding: 20, gap: 12, paddingBottom: 30},
   header: {gap: 12},
 
-  announcement: {backgroundColor: Colors.primaryDark, borderRadius: 16, padding: 15, gap: 9},
+  announcement: {
+    backgroundColor: Colors.heroTo,
+    borderRadius: 20,
+    padding: 16,
+    gap: 9,
+  },
   announcementLabel: {
     fontSize: 11.5,
     color: Colors.textOnDark2,
@@ -261,9 +266,9 @@ const styles = StyleSheet.create({
   callText: {flex: 1, fontSize: 13, color: Colors.slate2, lineHeight: 19},
   callButton: {
     backgroundColor: Colors.primary,
-    borderRadius: 10,
+    borderRadius: 14,
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 11,
   },
   callButtonText: {color: Colors.white, fontSize: 13, fontWeight: '800'},
 });

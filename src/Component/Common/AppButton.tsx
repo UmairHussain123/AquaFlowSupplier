@@ -8,6 +8,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import LinearGradient from 'react-native-linear-gradient';
 import {Colors} from '../../Constant/Colors';
 
 export type ButtonVariant =
@@ -43,6 +44,16 @@ const PALETTE: Record<
   ghost: {bg: Colors.surface3, fg: Colors.slate},
 };
 
+/**
+ * v2 fills the two "go ahead" variants with the teal→blue (and green) ramp.
+ * The gradient is an absolutely-positioned layer inside the same touchable, so
+ * press handling, disabled state and layout are exactly as before.
+ */
+const GRADIENTS: Partial<Record<ButtonVariant, string[]>> = {
+  primary: [Colors.gradFrom, Colors.gradTo],
+  success: [Colors.successFrom, Colors.successTo],
+};
+
 const AppButton: React.FC<Props> = ({
   title,
   onPress,
@@ -55,6 +66,7 @@ const AppButton: React.FC<Props> = ({
   left,
 }) => {
   const palette = PALETTE[variant];
+  const gradient = GRADIENTS[variant];
   const isDisabled = disabled || loading;
 
   return (
@@ -72,9 +84,20 @@ const AppButton: React.FC<Props> = ({
           borderWidth: palette.border ? 1 : 0,
           borderColor: palette.border ?? Colors.transparent,
         },
+        !!gradient && !isDisabled && styles.raised,
         isDisabled && styles.disabled,
         style,
       ]}>
+      {!!gradient && (
+        <LinearGradient
+          colors={gradient}
+          start={{x: 0, y: 0}}
+          end={{x: 1, y: 1}}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+      )}
+
       {loading ? (
         <ActivityIndicator color={palette.fg} size="small" />
       ) : (
@@ -98,11 +121,19 @@ const styles = StyleSheet.create({
   base: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
+    borderRadius: 16,
+    overflow: 'hidden',
   },
-  regular: {height: 52, paddingHorizontal: 18},
-  small: {height: 40, paddingHorizontal: 14, borderRadius: 11},
+  regular: {height: 54, paddingHorizontal: 18},
+  small: {height: 42, paddingHorizontal: 14, borderRadius: 13},
   block: {flex: 1},
+  raised: {
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.26,
+    shadowRadius: 20,
+    shadowOffset: {width: 0, height: 9},
+    elevation: 3,
+  },
   disabled: {opacity: 0.5},
   content: {flexDirection: 'row', alignItems: 'center', gap: 8},
   label: {fontSize: 16, fontWeight: '800'},

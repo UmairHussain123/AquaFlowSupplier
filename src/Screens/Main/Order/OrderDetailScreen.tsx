@@ -24,6 +24,7 @@ import ProgressSteps from '../../../Component/Common/ProgressSteps';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
 import SelectField from '../../../Component/Common/SelectField';
 import StatusBadge from '../../../Component/Common/StatusBadge';
+import {JarGlyph} from '../../../Component/Icons/Illustrations';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
 import {formatDateTime, formatTimeOfDay} from '../../../helper/dateHelper';
 import {apiErrorMessage, formatMoney, formatPhone, statusLabel, toNumber} from '../../../helper/helperFunction';
@@ -230,6 +231,9 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
 
           {order.items?.map(item => (
             <View key={item.id} style={styles.itemRow}>
+              <View style={styles.itemThumb}>
+                <JarGlyph size={22} />
+              </View>
               <Text style={styles.itemName}>
                 {item.quantity} × {item.product_name_snapshot}
               </Text>
@@ -426,8 +430,8 @@ const styles = StyleSheet.create({
   softAction: {
     flex: 1,
     backgroundColor: Colors.surface3,
-    borderRadius: 11,
-    paddingVertical: 11,
+    borderRadius: 14,
+    paddingVertical: 13,
     alignItems: 'center',
   },
   softActionPrimary: {backgroundColor: Colors.primaryTint},
@@ -443,17 +447,25 @@ const styles = StyleSheet.create({
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'center',
     gap: 12,
     marginTop: 11,
+  },
+  itemThumb: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    backgroundColor: Colors.primaryTint,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   itemName: {flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text},
   itemValue: {fontFamily: Fonts.mono, fontSize: 13.5, color: Colors.text},
 
   depositBox: {
     backgroundColor: Colors.warningBg,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: 16,
+    padding: 13,
     gap: 6,
     marginTop: 12,
   },
@@ -484,10 +496,15 @@ const styles = StyleSheet.create({
     gap: 11,
     paddingHorizontal: 20,
     paddingTop: 14,
-    paddingBottom: 18,
+    paddingBottom: 20,
     backgroundColor: Colors.white,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSoft,
+    shadowColor: 'rgba(11,27,43,1)',
+    shadowOpacity: 0.07,
+    shadowRadius: 26,
+    shadowOffset: {width: 0, height: -8},
+    elevation: 12,
   },
   rejectButton: {width: 118},
 });

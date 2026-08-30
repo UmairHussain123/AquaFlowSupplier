@@ -30,7 +30,7 @@ const ListRow: React.FC<{
 const styles = StyleSheet.create({
   row: {
     paddingHorizontal: 15,
-    paddingVertical: 15,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,

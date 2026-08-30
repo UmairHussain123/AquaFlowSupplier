@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
 import {useDispatch, useSelector} from 'react-redux';
+import LinearGradient from 'react-native-linear-gradient';
 import Toast from 'react-native-toast-message';
 
 import {Colors} from '../../../Constant/Colors';
@@ -156,6 +157,15 @@ const OrderScreen: React.FC = () => {
                 key={tab.key}
                 onPress={() => dispatch(setOrderTab(tab.key))}
                 style={[styles.tab, active && styles.tabActive]}>
+                {active && (
+                  <LinearGradient
+                    colors={[Colors.gradFrom, Colors.gradTo]}
+                    start={{x: 0, y: 0}}
+                    end={{x: 1, y: 1}}
+                    style={StyleSheet.absoluteFill}
+                    pointerEvents="none"
+                  />
+                )}
                 <Text style={[styles.tabText, active && styles.tabTextActive]}>
                   {tab.label}
                   {count ? ` · ${count}` : ''}
@@ -231,25 +241,41 @@ const OrderScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: Colors.surface},
-  header: {backgroundColor: Colors.white, paddingTop: 14, paddingHorizontal: 20},
+  header: {
+    backgroundColor: Colors.white,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    shadowColor: 'rgba(11,27,43,1)',
+    shadowOpacity: 0.05,
+    shadowRadius: 22,
+    shadowOffset: {width: 0, height: 8},
+    elevation: 3,
+    zIndex: 2,
+  },
   title: {
-    fontSize: 19,
+    fontSize: 25,
     fontWeight: '800',
-    letterSpacing: -0.4,
+    letterSpacing: -0.7,
     color: Colors.text,
-    marginBottom: 13,
+    marginBottom: 15,
+    paddingHorizontal: 20,
   },
-  tabs: {gap: 18, paddingRight: 20},
+  tabs: {gap: 8, paddingHorizontal: 20},
   tab: {
-    paddingBottom: 11,
-    borderBottomWidth: 2.5,
-    borderBottomColor: Colors.transparent,
+    height: 36,
+    paddingHorizontal: 15,
+    borderRadius: 999,
+    backgroundColor: Colors.surface3,
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
-  tabActive: {borderBottomColor: Colors.primary},
-  tabText: {fontSize: 13.5, fontWeight: '600', color: Colors.textMuted},
-  tabTextActive: {fontWeight: '800', color: Colors.text},
+  tabActive: {backgroundColor: Colors.primary},
+  tabText: {fontSize: 13, fontWeight: '700', color: Colors.slate},
+  tabTextActive: {fontWeight: '800', color: Colors.white},
 
-  body: {padding: 20, gap: 12, paddingBottom: 30},
+  body: {padding: 18, gap: 12, paddingBottom: 30},
   errorState: {alignItems: 'center'},
   retry: {paddingHorizontal: 22, marginTop: -14},
 });
