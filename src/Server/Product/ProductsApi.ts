@@ -113,15 +113,27 @@ export type UpdateShopProductPayload = Partial<
   Omit<AddShopProductPayload, 'product_id'>
 >;
 
-export type StockReason = 'restock' | 'correction' | 'damage' | 'loss' | 'return';
+/**
+ * The API only accepts these two — anything else (damage, loss, a customer
+ * return) is a `manual_adjustment` with the detail written into `notes`.
+ */
+export type StockReason = 'restock' | 'manual_adjustment';
 
-export const STOCK_REASONS: {value: StockReason; label: string}[] = [
-  {value: 'restock', label: 'Restock'},
-  {value: 'correction', label: 'Stock-take correction'},
-  {value: 'damage', label: 'Damaged'},
-  {value: 'loss', label: 'Lost / stolen'},
-  {value: 'return', label: 'Customer return'},
+export const STOCK_REASONS: {value: StockReason; label: string; hint: string}[] = [
+  {
+    value: 'restock',
+    label: 'Restock',
+    hint: 'New stock arrived — a delivery, a fresh filling run.',
+  },
+  {
+    value: 'manual_adjustment',
+    label: 'Manual adjustment',
+    hint: 'Stock-take correction, damage, loss or a customer return. Say which in the notes.',
+  },
 ];
+
+export const stockReasonHint = (reason: StockReason | string): string =>
+  STOCK_REASONS.find(r => r.value === reason)?.hint ?? '';
 
 export interface AdjustStockPayload {
   /** Signed delta — positive adds stock, negative removes it. */

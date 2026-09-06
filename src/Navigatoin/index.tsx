@@ -27,6 +27,7 @@ export {default as ContainerLedgerScreen} from '../Screens/Main/Catalog/Containe
 export {default as StatementsScreen} from '../Screens/Main/Money/StatementsScreen';
 
 // Shop settings (SC1)
+export {default as ShopDetailsScreen} from '../Screens/Main/Shop/ShopDetailsScreen';
 export {default as BusinessHoursScreen} from '../Screens/Main/Shop/BusinessHoursScreen';
 export {default as HolidaysScreen} from '../Screens/Main/Shop/HolidaysScreen';
 export {default as ServiceZonesScreen} from '../Screens/Main/Shop/ServiceZonesScreen';

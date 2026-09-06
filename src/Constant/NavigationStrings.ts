@@ -23,6 +23,7 @@ type ScreenNames = {
   AdjustStockScreen: string;
   ContainerLedgerScreen: string;
   BusinessHoursScreen: string;
+  ShopDetailsScreen: string;
   ServiceZonesScreen: string;
   HolidaysScreen: string;
   ComplianceScreen: string;
@@ -59,6 +60,7 @@ const Route: ScreenNames = {
   AdjustStockScreen: 'AdjustStockScreen',
   ContainerLedgerScreen: 'ContainerLedgerScreen',
   BusinessHoursScreen: 'BusinessHoursScreen',
+  ShopDetailsScreen: 'ShopDetailsScreen',
   ServiceZonesScreen: 'ServiceZonesScreen',
   HolidaysScreen: 'HolidaysScreen',
   ComplianceScreen: 'ComplianceScreen',

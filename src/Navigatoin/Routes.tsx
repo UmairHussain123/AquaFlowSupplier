@@ -25,6 +25,7 @@ import {
   RaiseDisputeScreen,
   ResetPassword,
   ServiceZonesScreen,
+  ShopDetailsScreen,
   SplashScreen,
   StatementsScreen,
   SupportScreen,
@@ -79,6 +80,7 @@ const Routes: React.FC = () => (
     <Stack.Screen name={Route.StatementsScreen} component={StatementsScreen} />
 
     {/* Shop settings */}
+    <Stack.Screen name={Route.ShopDetailsScreen} component={ShopDetailsScreen} />
     <Stack.Screen
       name={Route.BusinessHoursScreen}
       component={BusinessHoursScreen}

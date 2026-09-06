@@ -26,6 +26,7 @@ import {
   STOCK_REASONS,
   adjustShopProductStock,
   productLabel,
+  stockReasonHint,
   type ShopProduct,
 } from '../../../Server/Product/ProductsApi';
 
@@ -138,19 +139,24 @@ const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
             onChange={value => formik.setFieldValue('reason', value)}
             error={fieldError('reason')}
           />
+          <Text style={styles.hint}>{stockReasonHint(formik.values.reason)}</Text>
 
           <AppInput
             label="Notes"
             value={formik.values.notes}
             onChangeText={formik.handleChange('notes')}
-            placeholder="Optional — what happened"
+            placeholder={
+              formik.values.reason === 'manual_adjustment'
+                ? 'Why the count changed — damage, loss, stock-take'
+                : 'Optional — what arrived'
+            }
             multiline
           />
 
           {projected < 0 && (
             <InfoNote tone="warning">
-              This takes stock below zero. Use a stock-take correction instead if
-              the count itself was wrong.
+              This takes stock below zero, which the server rejects. Set the
+              change so the count lands at zero or above.
             </InfoNote>
           )}
 
@@ -197,6 +203,12 @@ const styles = StyleSheet.create({
   },
   quickText: {fontFamily: Fonts.mono, fontSize: 13, fontWeight: '700', color: Colors.primary},
 
+  hint: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+    marginTop: -6,
+  },
   error: {fontSize: 13, color: Colors.danger, fontWeight: '600'},
   footer: {
     paddingHorizontal: 20,

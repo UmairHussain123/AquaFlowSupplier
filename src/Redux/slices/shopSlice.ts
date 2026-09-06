@@ -36,6 +36,12 @@ const shopSlice = createSlice({
       const shop = state.shops.find(s => s.id === state.activeShopId);
       if (shop) shop.is_open = action.payload;
     },
+    /** Drop in the shop PUT /supplier/shops/{shop} just returned. */
+    upsertShop: (state, action: PayloadAction<Shop>) => {
+      const index = state.shops.findIndex(shop => shop.id === action.payload.id);
+      if (index >= 0) state.shops[index] = action.payload;
+      else state.shops.push(action.payload);
+    },
     shopsFailed: state => {
       state.loaded = true;
     },
@@ -43,8 +49,14 @@ const shopSlice = createSlice({
   },
 });
 
-export const {setShops, setActiveShop, setShopOpen, shopsFailed, clearShops} =
-  shopSlice.actions;
+export const {
+  setShops,
+  setActiveShop,
+  setShopOpen,
+  upsertShop,
+  shopsFailed,
+  clearShops,
+} = shopSlice.actions;
 
 export const selectShops = (state: any): Shop[] => state.shop?.shops ?? [];
 export const selectActiveShopId = (state: any): number | null =>

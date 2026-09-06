@@ -124,8 +124,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
   },
-  regular: {height: 54, paddingHorizontal: 18},
-  small: {height: 42, paddingHorizontal: 14, borderRadius: 13},
+  // minHeight, not height: `block` sets flex:1, and in a column parent (every
+  // sticky footer) that resolves flexBasis to 0 and a fixed height is ignored —
+  // which collapsed the button to nothing. A min constraint is clamped after
+  // flex resolves, so it holds on both axes.
+  regular: {minHeight: 54, paddingHorizontal: 18},
+  small: {minHeight: 42, paddingHorizontal: 14, borderRadius: 13},
   block: {flex: 1},
   raised: {
     shadowColor: Colors.primary,

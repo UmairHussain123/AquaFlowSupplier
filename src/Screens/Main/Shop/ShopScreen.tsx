@@ -28,10 +28,16 @@ import {
   setActiveShop,
   setShops,
   shopStatusLabel,
+  upsertShop,
 } from '../../../Redux/slices/shopSlice';
 import {selectUser} from '../../../Redux/slices/userSlice';
 import {logoutRequest} from '../../../Server/User';
-import {listShops, shopLocationLabel} from '../../../Server/Shops/ShopsApi';
+import {
+  capacityLabel,
+  listShops,
+  setShopOpenState,
+  shopLocationLabel,
+} from '../../../Server/Shops/ShopsApi';
 import {
   listBusinessHours,
   listHolidays,
@@ -66,6 +72,7 @@ const ShopScreen: React.FC = () => {
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [ledgerLabel, setLedgerLabel] = useState('—');
   const [refreshing, setRefreshing] = useState(false);
+  const [togglingOpen, setTogglingOpen] = useState(false);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -115,6 +122,29 @@ const ShopScreen: React.FC = () => {
     }, [load]),
   );
 
+  /**
+   * Pause/resume the shop. `status` is admin-controlled, so a suspended shop
+   * can't be reopened from here — only `is_open` is ours to set.
+   */
+  const toggleOpen = async (next: boolean) => {
+    if (!shopId || togglingOpen) return;
+    setTogglingOpen(true);
+    try {
+      dispatch(upsertShop(await setShopOpenState(shopId, next)));
+      Toast.show({
+        type: 'success',
+        text1: next ? 'Now accepting orders' : 'Paused — no new orders',
+      });
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: apiErrorMessage(error, 'Could not change your store status.'),
+      });
+    } finally {
+      setTogglingOpen(false);
+    }
+  };
+
   const signOut = () => {
     Alert.alert('Log out?', 'You will need your email and password to sign back in.', [
       {text: 'Stay signed in', style: 'cancel'},
@@ -136,6 +166,7 @@ const ShopScreen: React.FC = () => {
   };
 
   const isOpen = !!shop?.is_open && shop?.status === 'active';
+  const suspended = !!shop && shop.status === 'suspended';
 
   return (
     <View style={styles.screen}>
@@ -202,9 +233,26 @@ const ShopScreen: React.FC = () => {
             <Text style={styles.cardTitle}>Store status</Text>
             <ShopStatusPill label={shopStatusLabel(shop)} open={isOpen} />
           </View>
+
+          <View style={styles.toggleRow}>
+            <View style={styles.flex}>
+              <Text style={styles.toggleLabel}>Accepting orders</Text>
+              <Text style={styles.helper}>
+                {suspended
+                  ? 'Your shop is on hold with Aqua Flow — support can lift it.'
+                  : 'Turn this off to stop new orders straight away, without changing your hours.'}
+              </Text>
+            </View>
+            <AppSwitch
+              value={!!shop?.is_open}
+              disabled={suspended || togglingOpen}
+              onValueChange={toggleOpen}
+            />
+          </View>
+
           <Text style={styles.helper}>
-            Whether you're open right now follows your opening hours and holidays
-            — set a holiday to close for a whole day without changing the week.
+            Even while you're accepting, your listing still follows your opening
+            hours and holidays — set a holiday to close for a whole day.
           </Text>
           <View style={styles.statusActions}>
             <TouchableOpacity
@@ -223,6 +271,11 @@ const ShopScreen: React.FC = () => {
         </Card>
 
         <Card flush>
+          <ListRow
+            title="Shop details"
+            subtitle={`${shop?.address_line ?? '—'} · ${capacityLabel(shop)}`}
+            onPress={() => navigation.navigate(Route.ShopDetailsScreen)}
+          />
           <ListRow
             title="Hours & holidays"
             subtitle={
@@ -323,8 +376,18 @@ const styles = StyleSheet.create({
   suspended: {fontSize: 12, color: Colors.warningText, fontWeight: '700', marginTop: 3},
 
   statusRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSoft,
+  },
+  toggleLabel: {fontSize: 13.5, fontWeight: '800', color: Colors.text},
   cardTitle: {flex: 1, fontSize: 14.5, fontWeight: '800', color: Colors.text},
-  helper: {fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginTop: 10},
+  helper: {fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginTop: 6},
   statusActions: {flexDirection: 'row', gap: 9, marginTop: 12},
   softAction: {
     flex: 1,
