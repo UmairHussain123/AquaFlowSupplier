@@ -138,4 +138,9 @@ export const ORDER_TABS: {
     label: 'Done',
     statuses: ['delivered', 'completed', 'rejected', 'cancelled'],
   },
+  // Everything in one list. It owns no status of its own — `orderTabKey` never
+  // returns it, and the screen fills this bucket with the whole page — so an
+  // order that somehow carries a status none of the tabs above claim is still
+  // reachable here.
+  {key: 'all', label: 'All', statuses: []},
 ];

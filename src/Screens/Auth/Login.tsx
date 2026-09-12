@@ -19,6 +19,7 @@ import Route from '../../Constant/NavigationStrings';
 import BrandLogo from '../../Component/Icons/BrandLogo';
 import AppButton from '../../Component/Common/AppButton';
 import AppInput from '../../Component/Common/AppInput';
+import {devLogin} from '../../Constant/DevCredentials';
 import {loginSchema} from '../../Formik/LoginSchema';
 import {login} from '../../Redux/slices/userSlice';
 import {setShops, shopsFailed} from '../../Redux/slices/shopSlice';
@@ -42,7 +43,8 @@ const Login: React.FC<{navigation: any}> = ({navigation}) => {
   const [error, setError] = useState<string | null>(null);
 
   const formik = useFormik({
-    initialValues: {email: '', password: ''},
+    // Pre-filled with the staging account in debug builds, empty in release.
+    initialValues: devLogin(),
     validationSchema: loginSchema,
     onSubmit: async values => {
       setError(null);

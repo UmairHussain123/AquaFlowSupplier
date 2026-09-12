@@ -33,6 +33,9 @@ import {
 } from '../../../Server/Order/OrdersApi';
 import type {OrderDetail} from '../../../Server/Order/OrderType';
 
+/** The checkout response issues a 6-digit delivery code to the customer. */
+const DELIVERY_CODE_LENGTH = 6;
+
 /**
  * SB4 — closing out a delivery.
  *
@@ -92,8 +95,10 @@ const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
   const submit = async () => {
     if (!shopId) return;
 
-    if (code.trim().length < 4) {
-      setError("Enter the 4-digit code from the customer's app.");
+    if (code.trim().length < DELIVERY_CODE_LENGTH) {
+      setError(
+        `Enter the ${DELIVERY_CODE_LENGTH}-digit code from the customer's app.`,
+      );
       return;
     }
     if (isCod && !cashCollected) {
@@ -166,7 +171,11 @@ const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
             </Text>
 
             <View style={styles.otp}>
-              <OtpInput value={code} onChange={setCode} length={4} />
+              <OtpInput
+                value={code}
+                onChange={setCode}
+                length={DELIVERY_CODE_LENGTH}
+              />
             </View>
 
             {!!error && <Text style={styles.error}>{error}</Text>}

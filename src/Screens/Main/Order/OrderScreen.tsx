@@ -108,6 +108,7 @@ const OrderScreen: React.FC = () => {
       const key = orderTabKey(order.order_status);
       (buckets[key] ??= []).push(order);
     });
+    buckets.all = orders;
     return buckets;
   }, [orders]);
 
@@ -142,7 +143,11 @@ const OrderScreen: React.FC = () => {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.title}>Orders</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Orders</Text>
+          {/* The two apps look alike on a test device — this says which is open. */}
+          <Text style={styles.appTag}>Supplier</Text>
+        </View>
 
         <ScrollView
           horizontal
@@ -220,6 +225,8 @@ const OrderScreen: React.FC = () => {
                 message={
                   activeTab === 'new'
                     ? 'New orders appear the moment a customer places one.'
+                    : activeTab === 'all'
+                    ? "Every order this shop has taken shows up here."
                     : 'No orders in this stage right now.'
                 }
               />
@@ -254,13 +261,30 @@ const styles = StyleSheet.create({
     elevation: 3,
     zIndex: 2,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 15,
+  },
   title: {
     fontSize: 25,
     fontWeight: '800',
     letterSpacing: -0.7,
     color: Colors.text,
-    marginBottom: 15,
-    paddingHorizontal: 20,
+  },
+  appTag: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: Colors.slate,
+    backgroundColor: Colors.surface3,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    overflow: 'hidden',
   },
   tabs: {gap: 8, paddingHorizontal: 20},
   tab: {

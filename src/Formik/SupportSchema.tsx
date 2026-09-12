@@ -30,7 +30,7 @@ export const rejectOrderSchema = Yup.object().shape({
 export const deliveryOtpSchema = Yup.object().shape({
   code: Yup.string()
     .trim()
-    .matches(/^\d{4,6}$/, "Enter the code from the customer's app")
+    .matches(/^\d{6}$/, "Enter the 6-digit code from the customer's app")
     .required('Enter the delivery code'),
 });
 
