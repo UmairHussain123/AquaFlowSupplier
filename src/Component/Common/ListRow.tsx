@@ -11,17 +11,36 @@ const ListRow: React.FC<{
   right?: React.ReactNode;
   last?: boolean;
   danger?: boolean;
-}> = ({title, subtitle, onPress, right, last = false, danger = false}) => (
+  /** Tighter padding and a one-line subtitle, for long hub menus. */
+  dense?: boolean;
+}> = ({
+  title,
+  subtitle,
+  onPress,
+  right,
+  last = false,
+  danger = false,
+  dense = false,
+}) => (
   <TouchableOpacity
     activeOpacity={onPress ? 0.7 : 1}
     onPress={onPress}
     disabled={!onPress}
-    style={[styles.row, !last && styles.divider]}>
+    style={[styles.row, dense && styles.rowDense, !last && styles.divider]}>
     <View style={styles.text}>
-      <Text style={[styles.title, danger && {color: Colors.danger}]}>
+      <Text
+        style={[
+          styles.title,
+          dense && styles.titleDense,
+          danger && {color: Colors.danger},
+        ]}>
         {title}
       </Text>
-      {!!subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+      {!!subtitle && (
+        <Text style={styles.subtitle} numberOfLines={dense ? 1 : undefined}>
+          {subtitle}
+        </Text>
+      )}
     </View>
     {right ?? (onPress ? <ChevronRight color={Colors.textMuted} size={16} /> : null)}
   </TouchableOpacity>
@@ -35,6 +54,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  rowDense: {paddingVertical: 11},
+  titleDense: {fontSize: 13.5},
   divider: {borderBottomWidth: 1, borderBottomColor: Colors.borderSoft2},
   text: {flex: 1},
   title: {fontSize: 14, fontWeight: '800', color: Colors.text},

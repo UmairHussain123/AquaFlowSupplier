@@ -3,16 +3,15 @@ import * as Yup from 'yup';
 /**
  * Add / edit a shop product listing.
  *
- * `product_id` is a raw number because the supplier API exposes no catalog
- * browse endpoint — /admin/products, /admin/categories and /admin/brands are
- * admin-only, so there is nothing to pick from.
+ * `product_id` is set by the catalog picker (GET /supplier/products), so the
+ * only way it is missing is when nothing has been picked yet.
  */
 export const productSchema = Yup.object().shape({
   product_id: Yup.number()
-    .typeError('Catalog product id must be a number')
-    .integer('Catalog product id must be a whole number')
-    .positive('Catalog product id must be positive')
-    .required('Catalog product id is required'),
+    .typeError('Pick a product from the catalog')
+    .integer('Pick a product from the catalog')
+    .positive('Pick a product from the catalog')
+    .required('Pick a product from the catalog'),
   sku: Yup.string().trim().required('SKU is required'),
   price: Yup.number()
     .typeError('Price must be a number')
@@ -44,5 +43,23 @@ export const adjustStockSchema = Yup.object().shape({
   reason: Yup.string().required('Pick a reason'),
   notes: Yup.string().trim(),
 });
+
+/**
+ * The adjust-stock rules for one listing — on top of the base rules, a removal
+ * can't take the count below zero (the server rejects it too).
+ */
+export const adjustStockSchemaFor = (currentStock: number) =>
+  adjustStockSchema.shape({
+    change_quantity: Yup.number()
+      .typeError('Enter a number')
+      .integer('Enter a whole number')
+      .notOneOf([0], 'A zero change does nothing')
+      .test(
+        'not-below-zero',
+        `You only have ${currentStock} in stock`,
+        value => value === undefined || currentStock + value >= 0,
+      )
+      .required('Enter how much stock changed'),
+  });
 
 export default productSchema;

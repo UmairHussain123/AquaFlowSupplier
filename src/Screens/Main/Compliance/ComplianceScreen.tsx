@@ -1,39 +1,65 @@
 import React, {useCallback, useState} from 'react';
-import {ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {useFocusEffect} from '@react-navigation/native';
+import {useSelector} from 'react-redux';
 
 import {Colors} from '../../../Constant/Colors';
-import {Fonts} from '../../../Constant/Fonts';
 import Route from '../../../Constant/NavigationStrings';
 import AppButton from '../../../Component/Common/AppButton';
 import AppHeader from '../../../Component/Common/AppHeader';
 import Card from '../../../Component/Common/Card';
 import InfoNote from '../../../Component/Common/InfoNote';
-import ScreenLoader from '../../../Component/Common/ScreenLoader';
+import StatusBadge from '../../../Component/Common/StatusBadge';
 import {CheckIcon} from '../../../Component/Icons/TabIcons';
-import {formatHolidayDate} from '../../../helper/dateHelper';
+import {useActiveShop} from '../../../hooks/useActiveShop';
+import {selectUser} from '../../../Redux/slices/userSlice';
 import {
-  complianceStatusLabel,
-  daysUntil,
-  getComplianceSummary,
-  type ComplianceSummary,
+  REQUIRED_DOCUMENTS,
+  accountStatusMessage,
+  getSupplierAccountStatus,
+  listingStatus,
 } from '../../../Server/Compliance/ComplianceApi';
 
 /**
  * SC2 — Compliance centre.
  *
- * Documents are held and verified by ops: the Aquago Supplier API exposes no
- * document endpoints, so this screen shows the evidence state and routes a
- * renewal into a support ticket, which is the channel that does exist.
+ * The API exposes no supplier-facing document endpoints yet (no document list,
+ * no expiry dates, no upload route), so — like the web portal — this screen
+ * shows only what the app actually knows: the shop's listing status and the
+ * supplier account's approval status. Anything document-related goes to ops as
+ * a support ticket, which is the channel that does exist.
  */
 const ComplianceScreen: React.FC<{navigation: any}> = ({navigation}) => {
-  const [summary, setSummary] = useState<ComplianceSummary | null>(null);
-  const [loading, setLoading] = useState(true);
+  const shop = useActiveShop();
+  const user = useSelector(selectUser);
+  const userId = user?.id ?? null;
 
-  const load = useCallback(async () => {
-    setSummary(await getComplianceSummary());
-    setLoading(false);
-  }, []);
+  const [accountStatus, setAccountStatus] = useState<string | null>(null);
+  const [accountLoading, setAccountLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(
+    async (isRefresh = false) => {
+      if (isRefresh) setRefreshing(true);
+      try {
+        setAccountStatus(await getSupplierAccountStatus(userId, true));
+      } catch {
+        // The account row just stays hidden — the listing status still shows.
+        setAccountStatus(null);
+      } finally {
+        setAccountLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [userId],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -41,104 +67,119 @@ const ComplianceScreen: React.FC<{navigation: any}> = ({navigation}) => {
     }, [load]),
   );
 
-  if (loading) return <ScreenLoader />;
+  const listing = listingStatus(shop);
+  const accountMessage = accountStatusMessage(accountStatus);
 
-  const startRenewal = (documentName: string) =>
+  const raiseTicket = () =>
     navigation.navigate(Route.CreateTicketScreen, {
       category: 'general',
-      subject: `Document renewal — ${documentName}`,
+      subject:
+        shop && !listing.listed
+          ? `Listing ${shop.status} — ${shop.public_name}`
+          : 'Compliance document update',
     });
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Compliance" />
+      <AppHeader title="Compliance" subtitle="What Aqua Flow keeps on file" />
 
-      <ScrollView contentContainerStyle={styles.body}>
-        {!!summary?.banner && (
-          <View style={styles.banner}>
-            <Text style={styles.bannerTitle}>{summary.banner.message}</Text>
-            <Text style={styles.bannerBody}>
-              If it expires, your shop stops receiving new orders until ops
-              approve the new report. Reminders go out at 30, 14, 7 and 1 day.
-            </Text>
-            <AppButton
-              title="Start a renewal"
-              variant="dark"
-              small
-              onPress={() => startRenewal('Lab water test')}
-              style={styles.bannerAction}
-            />
-          </View>
-        )}
-
-        <Card flush>
-          {summary?.documents.map((doc, index) => {
-            const days = daysUntil(doc.valid_till);
-            const expiring = doc.status === 'expiring' || doc.status === 'expired';
-
-            return (
-              <View
-                key={doc.id}
-                style={[
-                  styles.docRow,
-                  index < (summary?.documents.length ?? 0) - 1 && styles.docDivider,
-                ]}>
-                <View style={[styles.docGlyph, expiring && styles.docGlyphWarn]}>
-                  {expiring ? (
-                    <Text style={styles.docGlyphWarnText}>!</Text>
-                  ) : (
-                    <CheckIcon color={Colors.success} size={14} />
-                  )}
-                </View>
-
-                <View style={styles.flex}>
-                  <Text style={styles.docName}>{doc.name}</Text>
-                  <Text
-                    style={[styles.docMeta, expiring && styles.docMetaWarn]}>
-                    {doc.valid_till
-                      ? `valid till ${formatHolidayDate(doc.valid_till.slice(0, 10))}${
-                          days !== null && days <= 30 ? ` · ${days}d left` : ''
-                        }`
-                      : complianceStatusLabel(doc.status)}
-                  </Text>
-                </View>
-
-                <TouchableOpacity onPress={() => startRenewal(doc.name)}>
-                  <Text style={styles.docAction}>
-                    {expiring ? 'Renew' : 'Replace'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-        </Card>
-
+      <ScrollView
+        contentContainerStyle={styles.body}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load(true)}
+          />
+        }>
         <Card>
-          <Text style={styles.cardTitle}>What customers see</Text>
-          <View style={styles.publicLine}>
-            <Text style={styles.publicText}>{summary?.customerVisible}</Text>
+          <View style={styles.statusRow}>
+            <View
+              style={[
+                styles.glyph,
+                listing.tone === 'success'
+                  ? styles.glyphSuccess
+                  : listing.tone === 'danger'
+                  ? styles.glyphDanger
+                  : styles.glyphWarn,
+              ]}>
+              {listing.tone === 'success' ? (
+                <CheckIcon color={Colors.success} size={15} />
+              ) : (
+                <Text
+                  style={[
+                    styles.glyphText,
+                    listing.tone === 'danger' && styles.glyphTextDanger,
+                  ]}>
+                  !
+                </Text>
+              )}
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.cardTitle}>Listing status</Text>
+              <Text style={styles.copy}>{listing.message}</Text>
+            </View>
+            {!!shop?.status && <StatusBadge status={shop.status} />}
           </View>
+
+          <View style={styles.accountRow}>
+            <View style={styles.flex}>
+              <Text style={styles.accountLabel}>Supplier account</Text>
+              {!!accountMessage && (
+                <Text style={styles.copy}>{accountMessage}</Text>
+              )}
+            </View>
+            {accountLoading ? (
+              <ActivityIndicator color={Colors.primary} size="small" />
+            ) : accountStatus ? (
+              <StatusBadge status={accountStatus} />
+            ) : (
+              <Text style={styles.unknown}>—</Text>
+            )}
+          </View>
+
           <Text style={styles.helper}>
-            Your documents themselves are never shown publicly — only the
-            evidence type and valid-through date.
+            Ops suspend a shop when a required document lapses. If your status
+            changes and you don't know why, raise a support ticket and ops will
+            tell you which document they need.
           </Text>
         </Card>
 
         <Card>
-          <Text style={styles.cardTitle}>Version history</Text>
-          <View style={styles.history}>
-            {summary?.history.map(entry => (
-              <Text key={`${entry.date}-${entry.action}`} style={styles.historyLine}>
-                {entry.date} · {entry.action}
-              </Text>
+          <Text style={styles.cardTitle}>
+            Documents Aqua Flow keeps on file
+          </Text>
+          <Text style={styles.helper}>
+            These were collected with your application. The app can't yet show
+            their approval state or expiry dates — that view is still being
+            built.
+          </Text>
+          <View style={styles.docs}>
+            {REQUIRED_DOCUMENTS.map(doc => (
+              <View key={doc.name} style={styles.doc}>
+                <Text style={styles.docName}>{doc.name}</Text>
+                <Text style={styles.docWhy}>{doc.why}</Text>
+              </View>
             ))}
           </View>
         </Card>
 
+        <Card>
+          <Text style={styles.cardTitle}>Need to send a new document?</Text>
+          <Text style={styles.copy}>
+            Uploading from the app isn't available yet. Raise a support ticket
+            and ops will take the file, renew it and update your record.
+          </Text>
+          <AppButton
+            title="Raise a support ticket"
+            small
+            block={false}
+            onPress={raiseTicket}
+            style={styles.action}
+          />
+        </Card>
+
         <InfoNote>
-          Uploading and approving evidence happens on the ops side. Raising a
-          renewal here opens a support ticket so ops know a new document is
-          coming.
+          Your documents themselves are never shown to customers.
         </InfoNote>
       </ScrollView>
     </View>
@@ -150,57 +191,57 @@ const styles = StyleSheet.create({
   flex: {flex: 1},
   body: {padding: 20, gap: 12, paddingBottom: 30},
 
-  banner: {backgroundColor: Colors.warningBg, borderRadius: 16, padding: 15, gap: 8},
-  bannerTitle: {fontSize: 14.5, fontWeight: '800', color: Colors.warningText},
-  bannerBody: {fontSize: 12.5, color: Colors.warningText2, lineHeight: 19},
-  bannerAction: {marginTop: 4, alignSelf: 'flex-start', paddingHorizontal: 18},
-
-  docRow: {
-    paddingHorizontal: 15,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  docDivider: {borderBottomWidth: 1, borderBottomColor: Colors.borderSoft2},
-  docGlyph: {
+  statusRow: {flexDirection: 'row', alignItems: 'flex-start', gap: 12},
+  glyph: {
     width: 38,
     height: 38,
     borderRadius: 13,
-    backgroundColor: Colors.successBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  docGlyphWarn: {backgroundColor: Colors.warningBg},
-  docGlyphWarnText: {fontSize: 14, fontWeight: '800', color: Colors.warningText},
-  docName: {fontSize: 14, fontWeight: '800', color: Colors.text},
-  docMeta: {
-    fontFamily: Fonts.mono,
-    fontSize: 11.5,
-    color: Colors.textSecondary,
-    marginTop: 2,
+  glyphSuccess: {backgroundColor: Colors.successBg},
+  glyphWarn: {backgroundColor: Colors.warningBg},
+  glyphDanger: {backgroundColor: Colors.dangerBg},
+  glyphText: {fontSize: 14, fontWeight: '800', color: Colors.warningText},
+  glyphTextDanger: {color: Colors.danger},
+
+  accountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 13,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSoft,
   },
-  docMetaWarn: {color: Colors.warningText},
-  docAction: {fontSize: 12.5, fontWeight: '800', color: Colors.primary},
+  accountLabel: {fontSize: 13.5, fontWeight: '800', color: Colors.text},
+  unknown: {fontSize: 13, color: Colors.textMuted},
 
   cardTitle: {fontSize: 14, fontWeight: '800', color: Colors.text},
-  publicLine: {
-    backgroundColor: Colors.successBg,
-    borderRadius: 15,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginTop: 10,
-  },
-  publicText: {fontSize: 12.5, color: Colors.successText, lineHeight: 19},
-  helper: {fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginTop: 9},
-
-  history: {gap: 6, marginTop: 10},
-  historyLine: {
-    fontFamily: Fonts.mono,
-    fontSize: 12,
+  copy: {
+    fontSize: 12.5,
     color: Colors.textSecondary,
     lineHeight: 19,
+    marginTop: 3,
   },
+  helper: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+    marginTop: 10,
+  },
+
+  docs: {gap: 8, marginTop: 12},
+  doc: {
+    backgroundColor: Colors.surfaceSoft,
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+  },
+  docName: {fontSize: 13.5, fontWeight: '800', color: Colors.text},
+  docWhy: {fontSize: 12, color: Colors.textSecondary, marginTop: 2},
+
+  action: {marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 18},
 });
 
 export default ComplianceScreen;

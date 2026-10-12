@@ -19,15 +19,74 @@ import Route from '../../Constant/NavigationStrings';
 import BrandLogo from '../../Component/Icons/BrandLogo';
 import AppButton from '../../Component/Common/AppButton';
 import AppInput from '../../Component/Common/AppInput';
+import InfoNote from '../../Component/Common/InfoNote';
 import {devLogin} from '../../Constant/DevCredentials';
 import {loginSchema} from '../../Formik/LoginSchema';
 import {login} from '../../Redux/slices/userSlice';
 import {setShops, shopsFailed} from '../../Redux/slices/shopSlice';
 import {loginRequest} from '../../Server/User';
 import {listShops} from '../../Server/Shops/ShopsApi';
-import {apiErrorMessage} from '../../helper/helperFunction';
 import {PlusIcon} from '../../Component/Icons/TabIcons';
 import {WaterJarArt} from '../../Component/Icons/Illustrations';
+
+type SignInError = {message: string; noAccess: boolean};
+
+/**
+ * Sign-in failures, worded as on the web portal. Kept here rather than in
+ * apiErrorMessage, which reads every 401 as an expired session — on this
+ * screen a 401 (or 422) means the email or password is wrong.
+ */
+const signInError = (err: unknown): SignInError => {
+  const response = (err as {response?: {status?: number; data?: any}})
+    ?.response;
+  const data = response?.data;
+  const apiMessage = typeof data?.message === 'string' ? data.message : '';
+  const fieldMessage = [
+    data?.errors?.email?.[0],
+    data?.errors?.password?.[0],
+  ].find(message => typeof message === 'string' && message);
+
+  // 403 "no supplier app access": the account exists but has no supplier
+  // role. The role is only granted when an application is approved, so this
+  // is what a pending, rejected or changes-requested applicant sees.
+  if (
+    response?.status === 403 &&
+    apiMessage.toLowerCase().includes('supplier app access')
+  ) {
+    return {
+      noAccess: true,
+      message:
+        "This account can't use the supplier app yet. If you applied recently, your application is still being reviewed — you'll be able to sign in once it is approved.",
+    };
+  }
+
+  if (!response) {
+    return {
+      noAccess: false,
+      message: 'Could not sign you in. Check your connection and try again.',
+    };
+  }
+
+  // Wrong credentials: the field error reads better than Laravel's summary
+  // ("… (and 1 more error)") when both are there, and a bare
+  // "Unauthenticated." says nothing the supplier can act on.
+  if (response.status === 401 || response.status === 422) {
+    const bare = /^unauth(orized|enticated)\.?$/i.test(apiMessage.trim());
+    return {
+      noAccess: false,
+      message:
+        fieldMessage ||
+        (bare ? '' : apiMessage) ||
+        'Incorrect email or password.',
+    };
+  }
+
+  return {
+    noAccess: false,
+    message:
+      apiMessage || fieldMessage || 'Could not sign you in. Please try again.',
+  };
+};
 
 /**
  * SA1 — Login.
@@ -40,7 +99,7 @@ import {WaterJarArt} from '../../Component/Icons/Illustrations';
  */
 const Login: React.FC<{navigation: any}> = ({navigation}) => {
   const dispatch = useDispatch();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<SignInError | null>(null);
 
   const formik = useFormik({
     // Pre-filled with the staging account in debug builds, empty in release.
@@ -67,7 +126,7 @@ const Login: React.FC<{navigation: any}> = ({navigation}) => {
         Toast.show({type: 'success', text1: `Welcome back, ${data.user.name}`});
         navigation.replace(Route.Main);
       } catch (err) {
-        setError(apiErrorMessage(err, 'Could not sign you in. Please try again.'));
+        setError(signInError(err));
       }
     },
   });
@@ -129,7 +188,21 @@ const Login: React.FC<{navigation: any}> = ({navigation}) => {
             error={formik.touched.password && formik.errors.password}
           />
 
-          {!!error && <Text style={styles.apiError}>{error}</Text>}
+          {!!error &&
+            (error.noAccess ? (
+              <InfoNote tone="warning">
+                {error.message}{' '}
+                <Text
+                  style={styles.noteLink}
+                  onPress={() =>
+                    navigation.navigate(Route.ApplicationStatusScreen)
+                  }>
+                  Check application status
+                </Text>
+              </InfoNote>
+            ) : (
+              <Text style={styles.apiError}>{error.message}</Text>
+            ))}
 
           <AppButton
             title="Sign in"
@@ -220,6 +293,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 19,
   },
+  noteLink: {fontWeight: '800', textDecorationLine: 'underline'},
   forgotWrap: {alignSelf: 'center'},
   forgot: {fontSize: 13, fontWeight: '800', color: Colors.primary},
 

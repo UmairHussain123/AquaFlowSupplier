@@ -13,7 +13,7 @@ export const resetPasswordSchema = Yup.object().shape({
     .trim()
     .email('Enter a valid email address')
     .required('Email is required'),
-  token: Yup.string().trim().required('Reset token is required'),
+  token: Yup.string().trim().required('Reset code is required'),
   password: passwordRules,
   password_confirmation: Yup.string()
     .oneOf([Yup.ref('password')], 'Passwords do not match')

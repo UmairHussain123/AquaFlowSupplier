@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useMemo, useState} from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -19,7 +19,7 @@ import AppInput from '../../../Component/Common/AppInput';
 import Card from '../../../Component/Common/Card';
 import InfoNote from '../../../Component/Common/InfoNote';
 import SelectField from '../../../Component/Common/SelectField';
-import {adjustStockSchema} from '../../../Formik/ProductSchema';
+import {adjustStockSchemaFor} from '../../../Formik/ProductSchema';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
 import {apiErrorMessage} from '../../../helper/helperFunction';
 import {
@@ -30,7 +30,11 @@ import {
   type ShopProduct,
 } from '../../../Server/Product/ProductsApi';
 
-/** A signed stock movement with a reason — the audited path to changing stock. */
+/**
+ * A signed stock movement with a reason — the audited path to changing stock.
+ * A removal can't take the count below zero: the form refuses it before the
+ * server has to.
+ */
 const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
   navigation,
   route,
@@ -39,15 +43,29 @@ const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
   const listing: ShopProduct = route?.params?.listing;
   const [error, setError] = useState<string | null>(null);
 
+  const current = listing?.stock_quantity ?? 0;
+  const validationSchema = useMemo(
+    () => adjustStockSchemaFor(current),
+    [current],
+  );
+
   const formik = useFormik({
     initialValues: {change_quantity: '', reason: 'restock', notes: ''},
-    validationSchema: adjustStockSchema,
+    validationSchema,
     onSubmit: async values => {
       if (!shopId || !listing) return;
+      const delta = Number(values.change_quantity);
+      if (current + delta < 0) {
+        formik.setFieldError(
+          'change_quantity',
+          `You only have ${current} in stock`,
+        );
+        return;
+      }
       setError(null);
       try {
         const updated = await adjustShopProductStock(shopId, listing.id, {
-          change_quantity: Number(values.change_quantity),
+          change_quantity: delta,
           reason: values.reason,
           notes: values.notes.trim() || undefined,
         });
@@ -63,7 +81,8 @@ const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
   });
 
   const change = Number(formik.values.change_quantity) || 0;
-  const projected = (listing?.stock_quantity ?? 0) + change;
+  const projected = current + change;
+  const belowZero = projected < 0;
 
   const quickSet = (value: number) =>
     formik.setFieldValue('change_quantity', String(value));
@@ -98,7 +117,7 @@ const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
                 <Text
                   style={[
                     styles.summaryValue,
-                    projected < 0 && {color: Colors.danger},
+                    belowZero && {color: Colors.danger},
                   ]}>
                   {projected}
                 </Text>
@@ -111,7 +130,7 @@ const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
               <TouchableOpacity
                 key={step}
                 onPress={() => quickSet(step)}
-                style={styles.quick}>
+                style={[styles.quick, current + step < 0 && styles.quickDim]}>
                 <Text style={styles.quickText}>
                   {step > 0 ? `+${step}` : step}
                 </Text>
@@ -124,7 +143,9 @@ const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
             value={formik.values.change_quantity}
             onChangeText={formik.handleChange('change_quantity')}
             onBlur={formik.handleBlur('change_quantity')}
-            keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'}
+            keyboardType={
+              Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'
+            }
             mono
             error={fieldError('change_quantity')}
           />
@@ -139,7 +160,9 @@ const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
             onChange={value => formik.setFieldValue('reason', value)}
             error={fieldError('reason')}
           />
-          <Text style={styles.hint}>{stockReasonHint(formik.values.reason)}</Text>
+          <Text style={styles.hint}>
+            {stockReasonHint(formik.values.reason)}
+          </Text>
 
           <AppInput
             label="Notes"
@@ -153,10 +176,10 @@ const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
             multiline
           />
 
-          {projected < 0 && (
+          {belowZero && (
             <InfoNote tone="warning">
-              This takes stock below zero, which the server rejects. Set the
-              change so the count lands at zero or above.
+              You only have {current} in stock, so you can remove at most{' '}
+              {current}. Set the change so the count lands at zero or above.
             </InfoNote>
           )}
 
@@ -169,6 +192,7 @@ const AdjustStockScreen: React.FC<{navigation: any; route: any}> = ({
           title="Save adjustment"
           onPress={formik.handleSubmit as any}
           loading={formik.isSubmitting}
+          disabled={belowZero}
         />
       </View>
     </View>
@@ -201,7 +225,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  quickText: {fontFamily: Fonts.mono, fontSize: 13, fontWeight: '700', color: Colors.primary},
+  quickDim: {opacity: 0.4},
+  quickText: {
+    fontFamily: Fonts.mono,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
 
   hint: {
     fontSize: 12,

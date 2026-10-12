@@ -1,6 +1,7 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
   Linking,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,66 +16,119 @@ import {Fonts} from '../../../Constant/Fonts';
 import Route from '../../../Constant/NavigationStrings';
 import AppButton from '../../../Component/Common/AppButton';
 import AppHeader from '../../../Component/Common/AppHeader';
-import AppInput from '../../../Component/Common/AppInput';
-import AppModal from '../../../Component/Common/AppModal';
 import Card from '../../../Component/Common/Card';
+import EmptyState from '../../../Component/Common/EmptyState';
+import InfoNote from '../../../Component/Common/InfoNote';
 import KeyValueRow from '../../../Component/Common/KeyValueRow';
 import Pill from '../../../Component/Common/Pill';
 import ProgressSteps from '../../../Component/Common/ProgressSteps';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
-import SelectField from '../../../Component/Common/SelectField';
 import StatusBadge from '../../../Component/Common/StatusBadge';
 import {JarGlyph} from '../../../Component/Icons/Illustrations';
+import ReasonSheet from '../../../Component/Order/ReasonSheet';
+import RiderCard from '../../../Component/Order/RiderCard';
+import {
+  CLOSED_NEGATIVE,
+  RIDER_ASSIGNABLE,
+  paymentStatusTone,
+} from '../../../Component/Order/orderTones';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
-import {formatDateTime, formatTimeOfDay} from '../../../helper/dateHelper';
-import {apiErrorMessage, formatMoney, formatPhone, statusLabel, toNumber} from '../../../helper/helperFunction';
+import {useSupplierRoles} from '../../../hooks/useSupplierRoles';
+import {formatDateTime, formatShortDateTime} from '../../../helper/dateHelper';
+import {
+  apiErrorMessage,
+  formatMoney,
+  statusLabel,
+  toNumber,
+} from '../../../helper/helperFunction';
+import {formatPhoneDisplay} from '../../../helper/phoneHelper';
+import {
+  listShopRiders,
+  type DashboardRider,
+} from '../../../Server/Dashboard/SupplierDashboardApi';
 import {
   ORDER_ACTION_LABELS,
   REJECTION_REASONS,
+  acceptOrder,
+  addressCoords,
+  addressLine,
+  assignOrderRider,
+  canCancelOrder,
+  cancelOrder,
   completeOrder,
   dispatchOrder,
+  failDelivery,
   fulfilmentProgress,
   getOrder,
+  isMaskedPhone,
+  isShopPlaced,
   lineTotal,
   nextOrderAction,
   prepareOrder,
   rejectOrder,
-  acceptOrder,
 } from '../../../Server/Order/OrdersApi';
-import type {OrderDetail} from '../../../Server/Order/OrderType';
+import type {OrderDetail, OrderStatus} from '../../../Server/Order/OrderType';
+
+/** Steps only an owner or manager may take — the API answers a rider with a 403. */
+const MANAGER_ONLY_ACTIONS = ['accept', 'prepare', 'complete'];
+
+/** Where a rider has nothing to do until the shop moves the order on. */
+const WAITING_ON_SHOP: OrderStatus[] = ['placed', 'accepted', 'delivered'];
+
+type ReasonKind = 'reject' | 'cancel' | 'fail';
 
 /**
  * SB3 — order detail with the accept / reject decision and, once accepted, the
- * rest of the fulfilment chain. The `deliver` step needs the customer's OTP, so
- * it hands off to CompleteDeliveryScreen (SB4) instead of firing here.
+ * rest of the fulfilment chain. The `deliver` step needs the customer's OTP
+ * (unless the shop placed the order), so it hands off to CompleteDeliveryScreen
+ * (SB4) instead of firing here.
+ *
+ * Accept / reject / prepare / complete, assigning a rider and cancelling are
+ * the shop's calls; dispatch, deliver and "delivery failed" are open to riders
+ * too — the same split the portal makes.
  */
 const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
   navigation,
   route,
 }) => {
   const shopId = useActiveShopId();
+  const {isShopManager} = useSupplierRoles();
   const orderId = route?.params?.orderId;
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [rejectOpen, setRejectOpen] = useState(false);
-  const [reason, setReason] = useState<string>(REJECTION_REASONS[0]);
-  const [otherReason, setOtherReason] = useState('');
+  const [sheet, setSheet] = useState<ReasonKind | null>(null);
 
-  const load = useCallback(async () => {
-    if (!shopId || !orderId) return;
-    try {
-      setOrder(await getOrder(shopId, orderId));
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(error, 'Could not load the order.'),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [orderId, shopId]);
+  const [riders, setRiders] = useState<DashboardRider[]>([]);
+  const [ridersLoading, setRidersLoading] = useState(false);
+  const [ridersError, setRidersError] = useState<string | null>(null);
+
+  const load = useCallback(
+    async (isRefresh = false) => {
+      if (!shopId || !orderId) {
+        setLoadError('This order could not be found.');
+        setLoading(false);
+        return;
+      }
+      if (isRefresh) setRefreshing(true);
+
+      try {
+        setOrder(await getOrder(shopId, orderId));
+        setLoadError(null);
+      } catch (error) {
+        const message = apiErrorMessage(error, 'Could not load the order.');
+        setLoadError(message);
+        Toast.show({type: 'error', text1: message});
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [orderId, shopId],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -84,81 +138,168 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
 
   // Arriving from the inbox's Reject button opens the sheet straight away.
   useEffect(() => {
-    if (route?.params?.reject) setRejectOpen(true);
+    if (route?.params?.reject) setSheet('reject');
   }, [route?.params?.reject]);
 
-  const runAction = async () => {
-    if (!shopId || !order) return;
-    const action = nextOrderAction(order.order_status);
-    if (!action) return;
+  const status = order?.order_status;
+  const canAssign =
+    isShopManager && !!status && RIDER_ASSIGNABLE.includes(status);
 
-    if (action === 'deliver') {
-      navigation.navigate(Route.CompleteDeliveryScreen, {orderId: order.id});
-      return;
+  // The staff list is owner-only; the dashboard lists the shop's riders for
+  // owners and managers alike, which is exactly who may assign one.
+  const loadRiders = useCallback(async () => {
+    if (!shopId) return;
+    setRidersLoading(true);
+    try {
+      setRiders(await listShopRiders(shopId));
+      setRidersError(null);
+    } catch (error) {
+      setRidersError(apiErrorMessage(error, "Couldn't load your riders."));
+    } finally {
+      setRidersLoading(false);
     }
+  }, [shopId]);
 
+  useEffect(() => {
+    if (canAssign) loadRiders();
+  }, [canAssign, loadRiders]);
+
+  /**
+   * Action endpoints answer with the bare order (no items, history or
+   * customer), so re-read the full detail rather than storing that response.
+   */
+  const reload = async (fallback?: OrderDetail) => {
+    if (!shopId || !orderId) return;
+    try {
+      setOrder(await getOrder(shopId, orderId));
+    } catch {
+      if (fallback) setOrder(prev => (prev ? {...prev, ...fallback} : prev));
+    }
+  };
+
+  /** Resolves true only when the action went through. */
+  const runAction = async (
+    action: (sid: number, current: OrderDetail) => Promise<OrderDetail>,
+    success: string,
+  ): Promise<boolean> => {
+    if (!shopId || !order) return false;
     setBusy(true);
     try {
-      const updated =
-        action === 'accept'
-          ? await acceptOrder(shopId, order.id)
-          : action === 'prepare'
-          ? await prepareOrder(shopId, order.id)
-          : action === 'dispatch'
-          ? await dispatchOrder(shopId, order.id)
-          : await completeOrder(shopId, order.id);
-
-      setOrder(updated);
-      Toast.show({type: 'success', text1: `Order ${statusLabel(updated.order_status)}`});
+      const updated = await action(shopId, order);
+      await reload(updated);
+      Toast.show({type: 'success', text1: success});
+      return true;
     } catch (error) {
       Toast.show({
         type: 'error',
         text1: apiErrorMessage(error, 'Could not update the order.'),
       });
+      return false;
     } finally {
       setBusy(false);
     }
   };
 
-  const submitRejection = async () => {
+  /** Shared by the reject / cancel / delivery-failed sheets; throws keep the sheet open. */
+  const submitReason = async (kind: ReasonKind, reason: string) => {
     if (!shopId || !order) return;
-    const text = reason === 'Other' ? otherReason.trim() : reason;
-    if (!text) {
-      Toast.show({type: 'error', text1: 'A reason is required'});
-      return;
-    }
+    const updated =
+      kind === 'reject'
+        ? await rejectOrder(shopId, order.id, reason)
+        : kind === 'cancel'
+        ? await cancelOrder(shopId, order.id, reason)
+        : await failDelivery(shopId, order.id, reason);
 
-    setBusy(true);
-    try {
-      const updated = await rejectOrder(shopId, order.id, text);
-      setOrder(updated);
-      setRejectOpen(false);
-      Toast.show({type: 'success', text1: 'Order rejected'});
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(error, 'Could not reject the order.'),
-      });
-    } finally {
-      setBusy(false);
-    }
+    setSheet(null);
+    Toast.show({
+      type: 'success',
+      text1:
+        kind === 'reject'
+          ? 'Order rejected'
+          : kind === 'cancel'
+          ? 'Order cancelled'
+          : 'Delivery marked as failed',
+    });
+    await reload(updated);
   };
 
   if (loading) return <ScreenLoader />;
-  if (!order) return <View style={styles.screen} />;
 
-  const address = order.address_snapshot;
-  const action = nextOrderAction(order.order_status);
+  if (!order) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Order" />
+        <EmptyState
+          title="Couldn't load this order"
+          message={loadError ?? 'This order could not be found.'}
+          actionLabel="Try again"
+          onAction={() => {
+            setLoading(true);
+            load();
+          }}
+        />
+      </View>
+    );
+  }
+
+  const currentStatus = order.order_status;
+  const action = nextOrderAction(currentStatus);
+  const canRunAction =
+    !!action && (isShopManager || !MANAGER_ONLY_ACTIONS.includes(action));
+  const canDecide = isShopManager && currentStatus === 'placed';
+  const canFail = currentStatus === 'out_for_delivery';
+  const canCancel = isShopManager && canCancelOrder(order);
+  const waitingOnShop =
+    !isShopManager && WAITING_ON_SHOP.includes(currentStatus);
+  const showFooter = canRunAction || canFail || canCancel || waitingOnShop;
+
+  const shopPlaced = isShopPlaced(order);
+  const isClosedNegative = CLOSED_NEGATIVE.includes(currentStatus);
+  const closedReason = order.rejection_reason ?? order.cancellation_reason;
+
+  const address = addressLine(order.address_snapshot);
+  const coords = addressCoords(order.address_snapshot);
   const deposit = toNumber(order.deposit_amount);
   const discount = toNumber(order.discount_amount);
   const phone = order.contact_phone ?? order.customer?.phone ?? null;
+  // The API only reveals the number from accepted to out for delivery.
+  const phoneMasked = isMaskedPhone(phone);
 
-  const openMaps = () => {
-    if (!address?.lat || !address?.lng) {
-      Toast.show({type: 'error', text1: 'This order has no map pin'});
+  const runNext = () => {
+    if (!action) return;
+    if (action === 'deliver') {
+      navigation.navigate(Route.CompleteDeliveryScreen, {orderId: order.id});
       return;
     }
-    const url = `https://maps.google.com/?q=${address.lat},${address.lng}`;
+    runAction(
+      (sid, current) =>
+        action === 'accept'
+          ? acceptOrder(sid, current.id)
+          : action === 'prepare'
+          ? prepareOrder(sid, current.id)
+          : action === 'dispatch'
+          ? dispatchOrder(sid, current.id)
+          : completeOrder(sid, current.id),
+      action === 'accept'
+        ? 'Order accepted'
+        : action === 'prepare'
+        ? 'Order marked as filled'
+        : action === 'dispatch'
+        ? 'Order sent out for delivery'
+        : 'Order closed',
+    );
+  };
+
+  const callCustomer = () => {
+    if (!phone) return;
+    Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() =>
+      Toast.show({type: 'error', text1: 'Could not start the call'}),
+    );
+  };
+
+  const openMaps = () => {
+    if (!coords) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`;
     Linking.openURL(url).catch(() =>
       Toast.show({type: 'error', text1: 'Could not open maps'}),
     );
@@ -168,23 +309,55 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
     <View style={styles.screen}>
       <AppHeader
         title={order.order_number}
-        subtitle={`Placed ${formatTimeOfDay(order.created_at)}`}
+        subtitle={`Placed ${formatShortDateTime(order.created_at)}`}
         mono
-        right={<StatusBadge status={order.order_status} />}
+        right={<StatusBadge status={currentStatus} />}
       />
 
-      <ScrollView contentContainerStyle={styles.body}>
-        {order.order_status !== 'placed' && (
-          <Card>
-            <ProgressSteps
-              total={4}
-              current={fulfilmentProgress(order.order_status)}
-              completedTone="success"
-            />
-            <Text style={styles.progressCaption}>
-              accepted → filled → on way → delivered
+      <ScrollView
+        contentContainerStyle={styles.body}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              load(true);
+              if (canAssign) loadRiders();
+            }}
+          />
+        }>
+        {shopPlaced && (
+          <View style={styles.metaRow}>
+            <Pill label="Placed by shop" tone="primary" uppercase />
+            <Text style={styles.metaText}>No delivery OTP on this order.</Text>
+          </View>
+        )}
+
+        {isClosedNegative ? (
+          <View style={styles.closedBanner}>
+            <Text style={styles.closedTitle}>
+              {currentStatus === 'delivery_failed'
+                ? 'Delivery failed'
+                : currentStatus === 'rejected'
+                ? 'Rejected'
+                : 'Cancelled'}
             </Text>
-          </Card>
+            {!!closedReason && (
+              <Text style={styles.closedReason}>{closedReason}</Text>
+            )}
+          </View>
+        ) : (
+          currentStatus !== 'placed' && (
+            <Card>
+              <ProgressSteps
+                total={4}
+                current={fulfilmentProgress(currentStatus)}
+                completedTone="success"
+              />
+              <Text style={styles.progressCaption}>
+                accepted → filled → on way → delivered
+              </Text>
+            </Card>
+          )
         )}
 
         {/* ---------- Deliver to ---------- */}
@@ -194,27 +367,39 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
             {order.customer?.name ?? `Customer #${order.customer_id}`}
           </Text>
           <Text style={styles.address}>
-            {[address?.line1, address?.area, address?.city]
-              .filter(Boolean)
-              .join(', ') || 'No address on this order'}
+            {address ?? 'No address on this order'}
           </Text>
 
           <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={[styles.softAction, styles.softActionPrimary]}
-              onPress={() =>
-                phone
-                  ? Linking.openURL(`tel:${phone}`)
-                  : Toast.show({type: 'error', text1: 'No phone on this order'})
-              }>
-              <Text style={styles.softActionPrimaryText}>
-                {phone ? `Call ${formatPhone(phone)}` : 'No phone'}
-              </Text>
-            </TouchableOpacity>
+            {phoneMasked ? (
+              // A masked number can't be dialled — say when it shows up.
+              <View style={[styles.softAction, styles.softActionDashed]}>
+                <Text style={styles.softActionText}>{phone}</Text>
+                <Text style={styles.softActionHint}>
+                  {currentStatus === 'placed'
+                    ? 'Visible once accepted'
+                    : 'Hidden after delivery'}
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                disabled={!phone}
+                style={[styles.softAction, !!phone && styles.softActionPrimary]}
+                onPress={callCustomer}>
+                <Text
+                  style={
+                    phone ? styles.softActionPrimaryText : styles.softActionText
+                  }>
+                  {phone ? `Call ${formatPhoneDisplay(phone)}` : 'No phone'}
+                </Text>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity style={styles.softAction} onPress={openMaps}>
-              <Text style={styles.softActionText}>Open in maps</Text>
-            </TouchableOpacity>
+            {!!coords && (
+              <TouchableOpacity style={styles.softAction} onPress={openMaps}>
+                <Text style={styles.softActionText}>Open in maps</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <TouchableOpacity
@@ -225,18 +410,45 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
           </TouchableOpacity>
         </Card>
 
+        {/* ---------- Rider ---------- */}
+        <RiderCard
+          delivery={order.delivery}
+          canAssign={canAssign}
+          riders={riders}
+          ridersLoading={ridersLoading}
+          ridersError={ridersError}
+          busy={busy}
+          onAssign={riderId =>
+            runAction(
+              (sid, current) => assignOrderRider(sid, current.id, riderId),
+              'Rider assigned',
+            )
+          }
+        />
+
         {/* ---------- Items & money ---------- */}
         <Card>
           <Text style={styles.label}>Items</Text>
 
+          {!order.items?.length && (
+            <Text style={styles.address}>No items on this order.</Text>
+          )}
           {order.items?.map(item => (
             <View key={item.id} style={styles.itemRow}>
               <View style={styles.itemThumb}>
                 <JarGlyph size={22} />
               </View>
-              <Text style={styles.itemName}>
-                {item.quantity} × {item.product_name_snapshot}
-              </Text>
+              <View style={styles.itemText}>
+                <Text style={styles.itemName}>
+                  {item.quantity} × {item.product_name_snapshot}
+                </Text>
+                <Text style={styles.itemMeta}>
+                  {formatMoney(item.unit_price)} each
+                  {toNumber(item.deposit_amount) > 0
+                    ? ` · deposit ${formatMoney(item.deposit_amount)}`
+                    : ''}
+                </Text>
+              </View>
               <Text style={styles.itemValue}>{formatMoney(lineTotal(item))}</Text>
             </View>
           ))}
@@ -297,8 +509,8 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
             <View style={styles.paymentChips}>
               <Pill label={order.payment_method?.toUpperCase() ?? 'COD'} />
               <Pill
-                label={statusLabel(order.payment_status)}
-                tone={order.payment_status === 'paid' ? 'success' : 'warning'}
+                label={`Payment · ${statusLabel(order.payment_status)}`}
+                tone={paymentStatusTone(order.payment_status)}
               />
             </View>
           </View>
@@ -307,10 +519,15 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
         {/* ---------- Timeline ---------- */}
         {!!order.status_history?.length && (
           <Card>
-            <Text style={styles.label}>Timeline</Text>
+            <Text style={styles.label}>Status history</Text>
             {order.status_history.map(entry => (
               <View key={entry.id} style={styles.timelineRow}>
                 <Text style={styles.timelineStatus}>
+                  {!!entry.from_status && (
+                    <Text style={styles.timelineFrom}>
+                      {statusLabel(entry.from_status)} →{' '}
+                    </Text>
+                  )}
                   {statusLabel(entry.to_status)}
                 </Text>
                 <Text style={styles.timelineTime}>
@@ -324,13 +541,6 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
           </Card>
         )}
 
-        {!!order.rejection_reason && (
-          <Card>
-            <Text style={styles.label}>Rejection reason</Text>
-            <Text style={styles.address}>{order.rejection_reason}</Text>
-          </Card>
-        )}
-
         <TouchableOpacity
           onPress={() =>
             navigation.navigate(Route.RaiseDisputeScreen, {orderId: order.id})
@@ -341,61 +551,90 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
         </TouchableOpacity>
       </ScrollView>
 
-      {!!action && (
+      {showFooter && (
         <View style={styles.footer}>
-          {order.order_status === 'placed' && (
-            <AppButton
-              title="Reject"
-              variant="danger"
-              onPress={() => setRejectOpen(true)}
-              disabled={busy}
-              block={false}
-              style={styles.rejectButton}
-            />
+          {waitingOnShop && (
+            <InfoNote tone="neutral">
+              Waiting on the shop — nothing for you to do on this order yet.
+            </InfoNote>
           )}
-          <AppButton
-            title={ORDER_ACTION_LABELS[action]}
-            onPress={runAction}
-            loading={busy}
-          />
+
+          {canRunAction && !!action && (
+            <View style={styles.footerRow}>
+              {canDecide && (
+                <AppButton
+                  title="Reject"
+                  variant="danger"
+                  onPress={() => setSheet('reject')}
+                  disabled={busy}
+                  block={false}
+                  style={styles.rejectButton}
+                />
+              )}
+              <AppButton
+                title={ORDER_ACTION_LABELS[action]}
+                onPress={runNext}
+                loading={busy}
+              />
+            </View>
+          )}
+
+          {canFail && (
+            <TouchableOpacity
+              disabled={busy}
+              onPress={() => setSheet('fail')}
+              style={styles.dangerLink}>
+              <Text style={styles.dangerLinkText}>Delivery failed</Text>
+            </TouchableOpacity>
+          )}
+
+          {canCancel && (
+            <TouchableOpacity
+              disabled={busy}
+              onPress={() => setSheet('cancel')}
+              style={styles.dangerLink}>
+              <Text style={styles.dangerLinkText}>Cancel order</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
-      <AppModal
-        visible={rejectOpen}
+      <ReasonSheet
+        visible={sheet === 'reject' && canDecide}
         title="Reject this order"
-        subtitle="The customer sees the reason, and ops keep a record of it."
-        onClose={() => setRejectOpen(false)}
-        footer={
-          <>
-            <AppButton
-              title="Cancel"
-              variant="secondary"
-              onPress={() => setRejectOpen(false)}
-            />
-            <AppButton
-              title="Reject order"
-              variant="danger"
-              onPress={submitRejection}
-              loading={busy}
-            />
-          </>
-        }>
-        <SelectField
-          label="Reason"
-          value={reason}
-          options={REJECTION_REASONS.map(item => ({value: item, label: item}))}
-          onChange={value => setReason(String(value))}
-        />
-        {reason === 'Other' && (
-          <AppInput
-            label="Tell ops what happened"
-            value={otherReason}
-            onChangeText={setOtherReason}
-            multiline
-          />
-        )}
-      </AppModal>
+        description="The customer sees the reason, and ops keep a record of it."
+        label="Reason"
+        presets={REJECTION_REASONS}
+        submitLabel="Reject order"
+        danger
+        onClose={() => setSheet(null)}
+        onSubmit={reason => submitReason('reject', reason)}
+      />
+
+      <ReasonSheet
+        visible={sheet === 'cancel' && canCancel}
+        title="Cancel order"
+        description="Stock goes back on the shelf and the payment is voided. Only orders you placed for a customer can be cancelled, and only before they leave for delivery."
+        label="Reason"
+        placeholder="e.g. Customer called to change the order."
+        submitLabel="Cancel order"
+        dismissLabel="Keep order"
+        danger
+        onClose={() => setSheet(null)}
+        onSubmit={reason => submitReason('cancel', reason)}
+      />
+
+      <ReasonSheet
+        visible={sheet === 'fail' && canFail}
+        title="Delivery failed"
+        description="Use this when the handover couldn't happen — customer unreachable, refused, wrong address. The order is closed and the customer is told why."
+        label="What happened?"
+        placeholder="e.g. Customer not at the address and not answering calls."
+        submitLabel="Mark failed"
+        danger
+        onClose={() => setSheet(null)}
+        onSubmit={reason => submitReason('fail', reason)}
+      />
     </View>
   );
 };
@@ -403,6 +642,26 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: Colors.surface},
   body: {padding: 20, gap: 12, paddingBottom: 30},
+
+  metaRow: {flexDirection: 'row', alignItems: 'center', gap: 9},
+  metaText: {flex: 1, fontSize: 12, color: Colors.textSecondary},
+
+  closedBanner: {
+    backgroundColor: Colors.dangerBg,
+    borderWidth: 1,
+    borderColor: Colors.dangerBorder,
+    borderRadius: 18,
+    padding: 14,
+    gap: 4,
+  },
+  closedTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: Colors.danger,
+  },
+  closedReason: {fontSize: 13, color: Colors.danger, lineHeight: 19},
 
   progressCaption: {
     fontFamily: Fonts.mono,
@@ -432,10 +691,19 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface3,
     borderRadius: 14,
     paddingVertical: 13,
+    paddingHorizontal: 8,
     alignItems: 'center',
   },
   softActionPrimary: {backgroundColor: Colors.primaryTint},
+  softActionDashed: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: Colors.borderDashed,
+    paddingVertical: 9,
+  },
   softActionText: {fontSize: 13, fontWeight: '800', color: Colors.slate},
+  softActionHint: {fontSize: 11, color: Colors.textMuted, marginTop: 2},
   softActionPrimaryText: {fontSize: 13, fontWeight: '800', color: Colors.primary},
   link: {
     fontSize: 13,
@@ -459,7 +727,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemName: {flex: 1, fontSize: 14, fontWeight: '700', color: Colors.text},
+  itemText: {flex: 1},
+  itemName: {fontSize: 14, fontWeight: '700', color: Colors.text},
+  itemMeta: {fontSize: 11.5, color: Colors.textMuted, marginTop: 2},
   itemValue: {fontFamily: Fonts.mono, fontSize: 13.5, color: Colors.text},
 
   depositBox: {
@@ -474,10 +744,11 @@ const styles = StyleSheet.create({
 
   totals: {gap: 9, marginTop: 12},
   rule: {height: 1, backgroundColor: Colors.borderSoft, marginVertical: 2},
-  paymentChips: {flexDirection: 'row', gap: 7, marginTop: 4},
+  paymentChips: {flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 4},
 
   timelineRow: {marginTop: 11},
   timelineStatus: {fontSize: 13.5, fontWeight: '800', color: Colors.text},
+  timelineFrom: {fontWeight: '600', color: Colors.textMuted},
   timelineTime: {
     fontFamily: Fonts.mono,
     fontSize: 11.5,
@@ -492,8 +763,7 @@ const styles = StyleSheet.create({
   },
 
   footer: {
-    flexDirection: 'row',
-    gap: 11,
+    gap: 10,
     paddingHorizontal: 20,
     paddingTop: 14,
     paddingBottom: 20,
@@ -506,7 +776,10 @@ const styles = StyleSheet.create({
     shadowOffset: {width: 0, height: -8},
     elevation: 12,
   },
+  footerRow: {flexDirection: 'row', gap: 11},
   rejectButton: {width: 118},
+  dangerLink: {alignItems: 'center', paddingVertical: 6},
+  dangerLinkText: {fontSize: 13.5, fontWeight: '800', color: Colors.danger},
 });
 
 export default OrderDetailScreen;

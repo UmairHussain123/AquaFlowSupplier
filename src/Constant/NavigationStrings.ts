@@ -36,6 +36,16 @@ type ScreenNames = {
   NotificationScreen: string;
   ProfileScreen: string;
   StatementsScreen: string;
+  NewOrderScreen: string;
+  CustomersScreen: string;
+  CustomerFormScreen: string;
+  StaffScreen: string;
+  StaffFormScreen: string;
+  PaymentsScreen: string;
+  SettlementDetailScreen: string;
+  PayoutAccountsScreen: string;
+  EditProfileScreen: string;
+  ChangePasswordScreen: string;
 };
 
 const Route: ScreenNames = {
@@ -73,6 +83,16 @@ const Route: ScreenNames = {
   NotificationScreen: 'NotificationScreen',
   ProfileScreen: 'ProfileScreen',
   StatementsScreen: 'StatementsScreen',
+  NewOrderScreen: 'NewOrderScreen',
+  CustomersScreen: 'CustomersScreen',
+  CustomerFormScreen: 'CustomerFormScreen',
+  StaffScreen: 'StaffScreen',
+  StaffFormScreen: 'StaffFormScreen',
+  PaymentsScreen: 'PaymentsScreen',
+  SettlementDetailScreen: 'SettlementDetailScreen',
+  PayoutAccountsScreen: 'PayoutAccountsScreen',
+  EditProfileScreen: 'EditProfileScreen',
+  ChangePasswordScreen: 'ChangePasswordScreen',
 };
 
 export default Route;

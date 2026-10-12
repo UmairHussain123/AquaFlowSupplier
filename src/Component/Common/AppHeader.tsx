@@ -31,7 +31,7 @@ const AppHeader: React.FC<Props> = ({
           onPress={() => navigation.goBack()}
           hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
           style={styles.back}>
-          <ChevronLeft color={Colors.text} size={20} />
+          <ChevronLeft color={Colors.text} size={18} />
         </TouchableOpacity>
       )}
 
@@ -57,12 +57,13 @@ const styles = StyleSheet.create({
   wrap: {
     backgroundColor: Colors.white,
     paddingHorizontal: 18,
-    paddingVertical: 16,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
+    paddingTop: 4,
+    paddingBottom: 10,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 13,
+    gap: 11,
     shadowColor: 'rgba(11,27,43,1)',
     shadowOpacity: 0.05,
     shadowRadius: 22,
@@ -71,16 +72,16 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   back: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
     backgroundColor: Colors.surfaceSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   titles: {flex: 1},
-  title: {fontSize: 16.5, fontWeight: '800', color: Colors.text},
-  subtitle: {fontSize: 12, color: Colors.textSecondary, marginTop: 3},
+  title: {fontSize: 16, fontWeight: '800', color: Colors.text},
+  subtitle: {fontSize: 11.5, color: Colors.textSecondary, marginTop: 1},
 });
 
 export default AppHeader;

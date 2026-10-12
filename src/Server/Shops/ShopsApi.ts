@@ -1,4 +1,5 @@
 import {privateAPI} from '../Config';
+import {cityName, type CityRef} from '../Cities/CitiesApi';
 
 export interface Shop {
   id: number;
@@ -8,7 +9,8 @@ export interface Shop {
   description: string | null;
   address_line: string;
   landmark: string | null;
-  city: string;
+  /** A bare name, or `{id, name}` when the API loads the relation — read via cityName(). */
+  city: CityRef;
   area: string;
   latitude: string;
   longitude: string;
@@ -58,6 +60,8 @@ export interface UpdateShopPayload {
   description?: string | null;
   address_line?: string;
   landmark?: string | null;
+  /** From GET /supplier/cities — preferred over the free-text `city`. */
+  city_id?: number;
   city?: string;
   area?: string;
   latitude?: number;
@@ -93,7 +97,7 @@ export const setShopOpenState = async (
 
 /** "Gulshan 6 · Karachi" for the dashboard subtitle. */
 export const shopLocationLabel = (shop: Shop | null): string =>
-  shop ? [shop.area, shop.city].filter(Boolean).join(' · ') : '—';
+  shop ? [shop.area, cityName(shop.city)].filter(Boolean).join(' · ') : '—';
 
 /** "200 orders / day" for the shop details row, or a note that there's no cap. */
 export const capacityLabel = (shop: Shop | null): string =>

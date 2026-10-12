@@ -7,36 +7,43 @@ import {Colors} from '../../../Constant/Colors';
 import {Fonts} from '../../../Constant/Fonts';
 import AppHeader from '../../../Component/Common/AppHeader';
 import Card from '../../../Component/Common/Card';
+import EmptyState from '../../../Component/Common/EmptyState';
 import InfoNote from '../../../Component/Common/InfoNote';
 import KeyValueRow from '../../../Component/Common/KeyValueRow';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
 import StatusBadge from '../../../Component/Common/StatusBadge';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
+import {useSupplierRoles} from '../../../hooks/useSupplierRoles';
 import {formatDateTime} from '../../../helper/dateHelper';
 import {apiErrorMessage, formatMoney} from '../../../helper/helperFunction';
 import {getDispute, isDisputeLive, type Dispute} from '../../../Server/Disputes/DisputesApi';
 
-/** One dispute and whatever ops have decided so far. */
+/** One dispute and whatever ops have decided so far. Owners and managers only. */
 const DisputeDetailScreen: React.FC<{route: any}> = ({route}) => {
   const shopId = useActiveShopId();
+  const {isShopManager} = useSupplierRoles();
   const disputeId = route?.params?.disputeId;
 
   const [dispute, setDispute] = useState<Dispute | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!shopId || !disputeId) return;
+    if (!shopId || !disputeId || !isShopManager) {
+      setLoading(false);
+      return;
+    }
     try {
       setDispute(await getDispute(shopId, disputeId));
+      setLoadError(null);
     } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(error, 'Could not load the dispute.'),
-      });
+      const message = apiErrorMessage(error, 'Could not load the dispute.');
+      setLoadError(message);
+      Toast.show({type: 'error', text1: message});
     } finally {
       setLoading(false);
     }
-  }, [disputeId, shopId]);
+  }, [disputeId, isShopManager, shopId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -44,8 +51,44 @@ const DisputeDetailScreen: React.FC<{route: any}> = ({route}) => {
     }, [load]),
   );
 
+  if (!isShopManager) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Dispute" />
+        <View style={styles.body}>
+          <Card>
+            <EmptyState
+              title="For owners and managers"
+              message="Jar disputes are raised and followed by the shop owner or manager."
+            />
+          </Card>
+        </View>
+      </View>
+    );
+  }
+
   if (loading) return <ScreenLoader />;
-  if (!dispute) return <View style={styles.screen} />;
+
+  if (!dispute) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Dispute" />
+        <View style={styles.body}>
+          <Card>
+            <EmptyState
+              title="Couldn't open this dispute"
+              message={loadError ?? 'This dispute could not be found.'}
+              actionLabel={disputeId && shopId ? 'Try again' : undefined}
+              onAction={() => {
+                setLoading(true);
+                load();
+              }}
+            />
+          </Card>
+        </View>
+      </View>
+    );
+  }
 
   const live = isDisputeLive(dispute);
 
@@ -66,6 +109,19 @@ const DisputeDetailScreen: React.FC<{route: any}> = ({route}) => {
             Raised {formatDateTime(dispute.created_at)}
             {dispute.raised_by ? ` by ${dispute.raised_by.name}` : ''}
           </Text>
+        </Card>
+
+        <Card>
+          <Text style={styles.label}>Details</Text>
+          <View style={styles.lines}>
+            <KeyValueRow label="Order" value={dispute.order_number ?? '—'} />
+            <KeyValueRow label="Shop" value={dispute.shop ?? '—'} />
+            <KeyValueRow label="Raised by" value={dispute.raised_by?.name ?? '—'} />
+            <KeyValueRow
+              label="Raised"
+              value={dispute.age ? `${dispute.age} ago` : '—'}
+            />
+          </View>
         </Card>
 
         <Card>

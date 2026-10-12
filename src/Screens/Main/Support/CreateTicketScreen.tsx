@@ -18,7 +18,7 @@ import AppHeader from '../../../Component/Common/AppHeader';
 import AppInput from '../../../Component/Common/AppInput';
 import InfoNote from '../../../Component/Common/InfoNote';
 import SelectField from '../../../Component/Common/SelectField';
-import {ticketSchema} from '../../../Formik/SupportSchema';
+import {OTHER_CATEGORY, ticketSchema} from '../../../Formik/SupportSchema';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
 import {formatTimeOfDay} from '../../../helper/dateHelper';
 import {apiErrorMessage} from '../../../helper/helperFunction';
@@ -35,8 +35,19 @@ import {
  *
  * `POST /supplier/support-tickets` takes only a category, a subject and an
  * optional order — the description goes in as the thread's first message, which
- * is what the detail screen renders.
+ * is what the detail screen renders. The category enum isn't fixed, so "Other…"
+ * lets you type one, as on the portal.
  */
+const ORDER_CHOICES = 50;
+
+const CATEGORY_OPTIONS = [
+  ...TICKET_CATEGORIES,
+  {value: OTHER_CATEGORY, label: 'Other…'},
+];
+
+const isKnownCategory = (value: string) =>
+  TICKET_CATEGORIES.some(category => category.value === value);
+
 const CreateTicketScreen: React.FC<{navigation: any; route: any}> = ({
   navigation,
   route,
@@ -49,7 +60,7 @@ const CreateTicketScreen: React.FC<{navigation: any; route: any}> = ({
     if (!shopId) return;
     try {
       const page = await listShopOrders(shopId, {
-        per_page: 30,
+        per_page: ORDER_CHOICES,
         sort_by: 'created_at',
         sort_order: 'desc',
       });
@@ -65,9 +76,13 @@ const CreateTicketScreen: React.FC<{navigation: any; route: any}> = ({
     }, [loadOrders]),
   );
 
+  // A preset category we don't list (from another screen) lands in "Other…".
+  const presetCategory: string = route?.params?.category ?? 'general';
+
   const formik = useFormik({
     initialValues: {
-      category: route?.params?.category ?? 'general',
+      category: isKnownCategory(presetCategory) ? presetCategory : OTHER_CATEGORY,
+      custom_category: isKnownCategory(presetCategory) ? '' : presetCategory,
       subject: route?.params?.subject ?? '',
       order_id: route?.params?.orderId ?? null,
       description: '',
@@ -75,9 +90,13 @@ const CreateTicketScreen: React.FC<{navigation: any; route: any}> = ({
     validationSchema: ticketSchema,
     onSubmit: async values => {
       setError(null);
+      const category =
+        values.category === OTHER_CATEGORY
+          ? values.custom_category.trim()
+          : values.category;
       try {
         const ticket = await createTicket({
-          category: values.category,
+          category,
           subject: values.subject.trim(),
           order_id: values.order_id ? Number(values.order_id) : null,
         });
@@ -91,7 +110,11 @@ const CreateTicketScreen: React.FC<{navigation: any; route: any}> = ({
           }
         }
 
-        Toast.show({type: 'success', text1: `Ticket TCK-${ticket.id} raised`});
+        Toast.show({
+          type: 'success',
+          text1: `Ticket TKT-${ticket.id} raised`,
+          text2: 'Ops will reply in the thread.',
+        });
         navigation.replace(Route.TicketDetailScreen, {ticketId: ticket.id});
       } catch (err) {
         setError(apiErrorMessage(err, 'Could not raise the ticket.'));
@@ -115,10 +138,23 @@ const CreateTicketScreen: React.FC<{navigation: any; route: any}> = ({
           <SelectField
             label="Category"
             value={formik.values.category}
-            options={TICKET_CATEGORIES}
+            options={CATEGORY_OPTIONS}
             onChange={value => formik.setFieldValue('category', value)}
             error={fieldError('category')}
           />
+
+          {formik.values.category === OTHER_CATEGORY && (
+            <AppInput
+              label="Your category"
+              value={formik.values.custom_category}
+              onChangeText={formik.handleChange('custom_category')}
+              onBlur={formik.handleBlur('custom_category')}
+              placeholder="e.g. compliance"
+              autoCapitalize="none"
+              maxLength={50}
+              error={fieldError('custom_category')}
+            />
+          )}
 
           <AppInput
             label="Subject"
@@ -132,15 +168,19 @@ const CreateTicketScreen: React.FC<{navigation: any; route: any}> = ({
           <SelectField
             label="About an order?"
             placeholder="Not about a specific order"
-            value={formik.values.order_id}
-            options={orders.map(order => ({
-              value: order.id,
-              label: order.order_number,
-              hint: `${order.customer?.name ?? 'Customer'} · ${formatTimeOfDay(
-                order.created_at,
-              )}`,
-            }))}
-            onChange={value => formik.setFieldValue('order_id', value)}
+            value={formik.values.order_id || null}
+            options={[
+              // Lets a picked order be cleared again, like the portal's empty option.
+              {value: 0, label: 'Not about a specific order'},
+              ...orders.map(order => ({
+                value: order.id,
+                label: order.order_number,
+                hint: `${order.customer?.name ?? 'Customer'} · ${formatTimeOfDay(
+                  order.created_at,
+                )}`,
+              })),
+            ]}
+            onChange={value => formik.setFieldValue('order_id', value || null)}
           />
 
           <AppInput

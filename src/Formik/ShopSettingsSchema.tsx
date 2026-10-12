@@ -1,4 +1,7 @@
 import * as Yup from 'yup';
+import {isPakistaniMobile} from '../helper/phoneHelper';
+
+const MOBILE_MESSAGE = 'Enter a full Pakistani mobile number (03XX-XXXXXXX)';
 
 export const serviceZoneSchema = Yup.object().shape({
   radius_km: Yup.number()
@@ -30,7 +33,8 @@ export default serviceZoneSchema;
 /**
  * The shop's own public details (PUT /supplier/shops/{shop}). `status` is the
  * admin-controlled approval state and isn't editable here; `capacity_per_day`
- * is optional and the API floors it at 0.
+ * is optional and the API floors it at 0. Both phones are Pakistani mobiles,
+ * typed through the 03XX-XXXXXXX mask.
  */
 export const shopDetailsSchema = Yup.object().shape({
   public_name: Yup.string().trim().required('Shop name is required'),
@@ -38,18 +42,15 @@ export const shopDetailsSchema = Yup.object().shape({
   description: Yup.string().trim(),
   address_line: Yup.string().trim().required('Address is required'),
   landmark: Yup.string().trim(),
-  city: Yup.string().trim().required('City is required'),
+  city: Yup.string().trim().required('Pick your city'),
   area: Yup.string().trim().required('Area is required'),
   contact_phone: Yup.string()
     .trim()
-    .matches(/^[0-9+\-\s]{7,20}$/, 'Enter a valid phone number')
-    .required('Contact phone is required'),
+    .required('Contact phone is required')
+    .test('pk-mobile', MOBILE_MESSAGE, value => isPakistaniMobile(value)),
   whatsapp_number: Yup.string()
     .trim()
-    .matches(/^[0-9+\-\s]{7,20}$/, {
-      message: 'Enter a valid WhatsApp number',
-      excludeEmptyString: true,
-    }),
+    .test('pk-mobile', MOBILE_MESSAGE, value => !value || isPakistaniMobile(value)),
   capacity_per_day: Yup.string()
     .trim()
     .matches(/^\d*$/, 'Capacity must be a whole number'),

@@ -1,6 +1,7 @@
 import React from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {Colors} from '../../Constant/Colors';
+import {Fonts} from '../../Constant/Fonts';
 import {formatMoney, toNumber} from '../../helper/helperFunction';
 import {
   isLowStock,
@@ -14,8 +15,9 @@ import {JarGlyph} from '../Icons/Illustrations';
 import AppSwitch from '../Common/AppSwitch';
 import Card from '../Common/Card';
 
-/** One catalog listing (SB5): the size badge, price/deposit line, the listed
- *  toggle, and a stock strip that turns amber when it hits the threshold. */
+/** One catalog listing (SB5): the size badge, price/deposit line, SKU and
+ *  brand, the listed toggle, and a stock strip that turns amber when it hits
+ *  the threshold. */
 const ProductCard: React.FC<{
   listing: ShopProduct;
   onPress: () => void;
@@ -26,6 +28,9 @@ const ProductCard: React.FC<{
   const out = isOutOfStock(listing);
   const low = isLowStock(listing);
   const deposit = toNumber(listing.deposit_amount);
+  const meta = [listing.sku, listing.product?.brand?.name]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <Card style={out ? styles.dimmed : undefined}>
@@ -53,6 +58,14 @@ const ProductCard: React.FC<{
                 {returnModeLabel(listing.return_mode)}
               </Text>
             )}
+            {!!meta && (
+              <Text style={styles.meta} numberOfLines={1}>
+                {meta}
+              </Text>
+            )}
+            {!listing.is_active && !out && (
+              <Text style={styles.hiddenText}>Hidden from customers</Text>
+            )}
           </View>
         </TouchableOpacity>
 
@@ -69,7 +82,9 @@ const ProductCard: React.FC<{
         style={[styles.stock, low && styles.stockLow]}>
         <Text style={[styles.stockLabel, low && styles.stockLabelLow]}>
           Stock {listing.stock_quantity}
-          {low && !out ? ' · low' : ''}
+          {low && !out
+            ? ` · low (alert at ${listing.low_stock_threshold})`
+            : ''}
         </Text>
         <Text style={styles.adjust}>Adjust</Text>
       </TouchableOpacity>
@@ -93,6 +108,18 @@ const styles = StyleSheet.create({
   titles: {flex: 1},
   title: {fontSize: 15, fontWeight: '800', color: Colors.text},
   subtitle: {fontSize: 12.5, color: Colors.textSecondary, marginTop: 2},
+  meta: {
+    fontFamily: Fonts.mono,
+    fontSize: 11.5,
+    color: Colors.textMuted,
+    marginTop: 2,
+  },
+  hiddenText: {
+    fontSize: 12,
+    color: Colors.textMuted,
+    fontWeight: '700',
+    marginTop: 2,
+  },
   outText: {
     fontSize: 12.5,
     color: Colors.danger,

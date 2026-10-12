@@ -32,16 +32,27 @@ export const loginRequest = async (data: {
   return response.data;
 };
 
-export const logoutRequest = async (): Promise<void> => {
-  try {
-    await privateAPI.post('/supplier/logout');
-  } catch {
-    // Best-effort: the server-side token may already be gone (expired or
-    // revoked elsewhere), which answers 401. Signing out locally must succeed
-    // regardless.
-  } finally {
-    await clearAuthAndLogout();
+// A second tap while one logout is in flight joins it instead of firing
+// another POST /supplier/logout and a second reset to Login.
+let logoutInFlight: Promise<void> | null = null;
+
+export const logoutRequest = (): Promise<void> => {
+  if (!logoutInFlight) {
+    logoutInFlight = (async () => {
+      try {
+        await privateAPI.post('/supplier/logout');
+      } catch {
+        // Best-effort: the server-side token may already be gone (expired or
+        // revoked elsewhere), which answers 401. Signing out locally must
+        // succeed regardless.
+      } finally {
+        await clearAuthAndLogout();
+      }
+    })().finally(() => {
+      logoutInFlight = null;
+    });
   }
+  return logoutInFlight;
 };
 
 export const forgotPasswordRequest = async (

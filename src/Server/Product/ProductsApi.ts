@@ -11,6 +11,7 @@ import {privateAPI} from '../Config';
  *   PUT    /supplier/shops/{shop}/products/{id}
  *   DELETE /supplier/shops/{shop}/products/{id}
  *   POST   /supplier/shops/{shop}/products/{id}/adjust-stock
+ *   GET    /supplier/products   (catalog picker, further down)
  */
 
 /** How a container comes back to the shop, which decides whether a deposit applies. */
@@ -197,6 +198,61 @@ export const adjustShopProductStock = async (
     payload,
   );
   return data.data;
+};
+
+// --------------------
+// Catalog picker (read-only)
+// --------------------
+//   GET /supplier/products
+//
+// The master catalog a supplier lists from. Passing `shop_id` makes every row
+// carry `is_listed`, so the picker can grey out products the shop already
+// sells instead of letting the supplier hit the duplicate rejection.
+
+export interface CatalogPickerProduct {
+  id: number;
+  name: string;
+  size_value: string | null;
+  size_unit: string | null;
+  pack_quantity: number | null;
+  /** Set when the product is a returnable container — a deposit usually applies. */
+  container_type_id: number | null;
+  category: ProductCategory | null;
+  brand: ProductBrand | null;
+  is_listed: boolean;
+}
+
+export interface CatalogPickerParams {
+  shop_id?: number | string;
+  search?: string;
+  category_id?: number | string;
+  brand_id?: number | string;
+  unlisted_only?: boolean;
+  per_page?: number;
+  page?: number;
+}
+
+export interface CatalogPickerResponse {
+  current_page: number;
+  data: CatalogPickerProduct[];
+  last_page: number;
+  total: number;
+}
+
+export const listCatalogProducts = async (
+  params: CatalogPickerParams = {},
+): Promise<CatalogPickerResponse> => {
+  const {data} = await privateAPI.get<CatalogPickerResponse>(
+    '/supplier/products',
+    {params: {...params, unlisted_only: params.unlisted_only ? 1 : undefined}},
+  );
+  return data;
+};
+
+/** "Nestle Pure Life · 19 L" */
+export const catalogProductLabel = (product: CatalogPickerProduct): string => {
+  const size = [product.size_value, product.size_unit].filter(Boolean).join(' ');
+  return [product.name, size].filter(Boolean).join(' · ');
 };
 
 // --------------------

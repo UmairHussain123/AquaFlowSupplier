@@ -44,7 +44,10 @@ const DisputeCard: React.FC<{dispute: Dispute; onPress: () => void}> = ({
           )}
         </View>
 
-        <Text style={styles.age}>raised {dispute.age} ago</Text>
+        <Text style={styles.age}>
+          raised {dispute.age} ago
+          {dispute.raised_by?.name ? ` by ${dispute.raised_by.name}` : ''}
+        </Text>
       </Card>
     </TouchableOpacity>
   );

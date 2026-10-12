@@ -8,8 +8,8 @@ export interface FilterState {
   catalogCategoryId: number | null;
   catalogBrandId: number | null;
   catalogLowStockOnly: boolean;
-  ticketTab: 'live' | 'closed';
-  disputeTab: 'live' | 'closed';
+  ticketTab: 'live' | 'closed' | 'all';
+  disputeTab: 'live' | 'closed' | 'all';
 }
 
 const initialState: FilterState = {
@@ -41,10 +41,10 @@ const filterSlice = createSlice({
     setCatalogLowStock: (state, action: PayloadAction<boolean>) => {
       state.catalogLowStockOnly = action.payload;
     },
-    setTicketTab: (state, action: PayloadAction<'live' | 'closed'>) => {
+    setTicketTab: (state, action: PayloadAction<'live' | 'closed' | 'all'>) => {
       state.ticketTab = action.payload;
     },
-    setDisputeTab: (state, action: PayloadAction<'live' | 'closed'>) => {
+    setDisputeTab: (state, action: PayloadAction<'live' | 'closed' | 'all'>) => {
       state.disputeTab = action.payload;
     },
     resetCatalogFilters: state => {

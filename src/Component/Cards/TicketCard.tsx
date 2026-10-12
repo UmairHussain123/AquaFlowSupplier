@@ -12,7 +12,8 @@ import Card from '../Common/Card';
 import Pill from '../Common/Pill';
 import StatusBadge from '../Common/StatusBadge';
 
-/** One support ticket in SC3. */
+/** One support ticket in SC3 — numbered TKT-{id} and showing who at ops has
+ *  it, as the portal does. */
 const TicketCard: React.FC<{ticket: SupportTicket; onPress: () => void}> = ({
   ticket,
   onPress,
@@ -20,7 +21,7 @@ const TicketCard: React.FC<{ticket: SupportTicket; onPress: () => void}> = ({
   <TouchableOpacity activeOpacity={0.85} onPress={onPress}>
     <Card>
       <View style={styles.head}>
-        <Text style={styles.reference}>TCK-{ticket.id}</Text>
+        <Text style={styles.reference}>TKT-{ticket.id}</Text>
         <StatusBadge status={ticket.status} />
         {isSlaBreached(ticket) && <Pill label="SLA breached" tone="danger" uppercase />}
       </View>
@@ -30,6 +31,7 @@ const TicketCard: React.FC<{ticket: SupportTicket; onPress: () => void}> = ({
       <Text style={styles.meta}>
         {categoryLabel(ticket.category)}
         {ticket.order_id ? ` · order #${ticket.order_id}` : ''}
+        {ticket.assignee?.name ? ` · with ${ticket.assignee.name}` : ' · unassigned'}
       </Text>
 
       <Text style={styles.age}>

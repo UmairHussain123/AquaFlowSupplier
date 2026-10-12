@@ -13,6 +13,7 @@ const TONE_BY_STATUS: Record<string, PillTone> = {
   completed: 'success',
   rejected: 'muted',
   cancelled: 'muted',
+  delivery_failed: 'danger',
   // Tickets
   open: 'warning',
   pending: 'primary',
@@ -23,6 +24,25 @@ const TONE_BY_STATUS: Record<string, PillTone> = {
   // Payments
   paid: 'success',
   unpaid: 'warning',
+  succeeded: 'success',
+  failed: 'danger',
+  voided: 'muted',
+  refunded: 'muted',
+  refund_pending: 'warning',
+  // Settlements & payouts
+  draft: 'muted',
+  approved: 'primary',
+  processing: 'primary',
+  held: 'warning',
+  reversed: 'danger',
+  // Jar deposits
+  confirmed: 'success',
+  disputed: 'warning',
+  // Staff & accounts
+  active: 'success',
+  suspended: 'danger',
+  paused: 'warning',
+  expired: 'danger',
 };
 
 const StatusBadge: React.FC<{status: string; uppercase?: boolean}> = ({

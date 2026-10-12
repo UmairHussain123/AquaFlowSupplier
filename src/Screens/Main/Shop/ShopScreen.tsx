@@ -1,11 +1,10 @@
 import React, {useCallback, useState} from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
@@ -17,10 +16,21 @@ import {Colors} from '../../../Constant/Colors';
 import Route from '../../../Constant/NavigationStrings';
 import AppSwitch from '../../../Component/Common/AppSwitch';
 import Card from '../../../Component/Common/Card';
+import InfoNote from '../../../Component/Common/InfoNote';
 import ListRow from '../../../Component/Common/ListRow';
-import Pill from '../../../Component/Common/Pill';
+import ChipGroup from '../../../Component/Common/ChipGroup';
 import ShopStatusPill from '../../../Component/Common/ShopStatusPill';
+import StatusBanners from '../../../Component/Common/StatusBanners';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
+import {
+  ROLE_MANAGER,
+  ROLE_OWNER,
+  ROLE_RIDER,
+  roleLabel,
+  useSupplierRoles,
+} from '../../../hooks/useSupplierRoles';
+import {useSignOut} from '../../../hooks/useSignOut';
+import {useUnreadNotifications} from '../../../hooks/useUnreadNotifications';
 import {setLoudOrderAlert} from '../../../Redux/slices/SettingSlice';
 import {
   selectActiveShop,
@@ -31,7 +41,6 @@ import {
   upsertShop,
 } from '../../../Redux/slices/shopSlice';
 import {selectUser} from '../../../Redux/slices/userSlice';
-import {logoutRequest} from '../../../Server/User';
 import {
   capacityLabel,
   listShops,
@@ -47,16 +56,25 @@ import {
   zonesSummary,
   type Holiday,
 } from '../../../Server/ShopSettings/ShopSettingsApi';
-import {getContainerLedger} from '../../../Server/Container/ContainerApi';
-import {apiErrorMessage, formatMoney, initials, pluralize} from '../../../helper/helperFunction';
+import {getContainerSummary} from '../../../Server/Container/ContainerTransactionsApi';
+import {
+  apiErrorMessage,
+  formatMoney,
+  initials,
+  pluralize,
+} from '../../../helper/helperFunction';
 
 /**
  * SC1 — Shop.
  *
  * The hub for everything that isn't an order: shop identity, open/closed,
- * hours, delivery zones, the container ledger, compliance, support and sign
- * out. Each row carries a live summary so the supplier can see the state
- * without opening the screen.
+ * hours, delivery zones, jar deposits, customers, staff, compliance, support
+ * and sign out. Each row carries a live summary so the supplier can see the
+ * state without opening the screen.
+ *
+ * What's offered follows the role, as on the web sidebar: managers run hours
+ * and holidays but see the shop details, zones and the pause switch read-only
+ * (owner-only edits); a rider gets no shop settings at all.
  */
 const ShopScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -66,42 +84,51 @@ const ShopScreen: React.FC = () => {
   const shops = useSelector(selectShops);
   const user = useSelector(selectUser);
   const loudAlert = useSelector((state: any) => state.setting.loudOrderAlert);
+  const {isOwner, isShopManager, isRiderOnly} = useSupplierRoles();
+  const {count: unread} = useUnreadNotifications();
+  const {signOut, signingOut} = useSignOut();
 
   const [hoursLabel, setHoursLabel] = useState('—');
   const [zonesLabel, setZonesLabel] = useState('—');
   const [holidays, setHolidays] = useState<Holiday[]>([]);
-  const [ledgerLabel, setLedgerLabel] = useState('—');
+  const [jarsLabel, setJarsLabel] = useState('Jars out with customers');
   const [refreshing, setRefreshing] = useState(false);
   const [togglingOpen, setTogglingOpen] = useState(false);
 
   const load = useCallback(
     async (isRefresh = false) => {
-      if (!shopId) return;
       if (isRefresh) setRefreshing(true);
 
-      // Each summary is independent — one failing shouldn't blank the others.
-      const [hours, zones, holidayRows, ledger] = await Promise.allSettled([
-        listBusinessHours(shopId),
-        listServiceZones(shopId),
-        listHolidays(shopId),
-        getContainerLedger(shopId),
-      ]);
+      // Shop settings and jar deposits are shop management — a rider would
+      // just get a 403 for each, so they aren't asked for.
+      if (shopId && isShopManager) {
+        // Each summary is independent — one failing shouldn't blank the others.
+        const [hours, zones, holidayRows, jars] = await Promise.allSettled([
+          listBusinessHours(shopId),
+          listServiceZones(shopId),
+          listHolidays(shopId),
+          getContainerSummary(shopId),
+        ]);
 
-      if (hours.status === 'fulfilled') {
-        setHoursLabel(weekSummary(weekFromApi(hours.value)));
-      }
-      if (zones.status === 'fulfilled') {
-        setZonesLabel(zonesSummary(zones.value));
-      }
-      if (holidayRows.status === 'fulfilled') {
-        setHolidays(holidayRows.value);
-      }
-      if (ledger.status === 'fulfilled') {
-        setLedgerLabel(
-          `${pluralize(ledger.value.totalJars, 'jar')} on loan · ${formatMoney(
-            ledger.value.totalDeposits,
-          )} held`,
-        );
+        if (hours.status === 'fulfilled') {
+          setHoursLabel(weekSummary(weekFromApi(hours.value)));
+        }
+        if (zones.status === 'fulfilled') {
+          setZonesLabel(zonesSummary(zones.value));
+        }
+        if (holidayRows.status === 'fulfilled') {
+          setHolidays(holidayRows.value ?? []);
+        }
+        if (jars.status === 'fulfilled') {
+          const {outstandingJars, depositHeld, pendingCount} = jars.value;
+          setJarsLabel(
+            pendingCount
+              ? `${pluralize(outstandingJars, 'jar')} out · ${formatMoney(
+                  depositHeld,
+                )} held · ${pendingCount} to reconcile`
+              : 'Nothing waiting to be reconciled',
+          );
+        }
       }
 
       if (isRefresh) {
@@ -113,7 +140,7 @@ const ShopScreen: React.FC = () => {
         setRefreshing(false);
       }
     },
-    [dispatch, shopId],
+    [dispatch, isShopManager, shopId],
   );
 
   useFocusEffect(
@@ -145,28 +172,76 @@ const ShopScreen: React.FC = () => {
     }
   };
 
-  const signOut = () => {
-    Alert.alert('Log out?', 'You will need your email and password to sign back in.', [
-      {text: 'Stay signed in', style: 'cancel'},
-      {
-        text: 'Log out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await logoutRequest();
-          } catch (error) {
-            Toast.show({
-              type: 'error',
-              text1: apiErrorMessage(error, 'Signed out locally.'),
-            });
-          }
-        },
-      },
-    ]);
-  };
-
   const isOpen = !!shop?.is_open && shop?.status === 'active';
   const suspended = !!shop && shop.status === 'suspended';
+  const pausedByAquaFlow = !!shop && shop.status === 'paused';
+  const role = isOwner
+    ? roleLabel(ROLE_OWNER)
+    : isShopManager
+    ? roleLabel(ROLE_MANAGER)
+    : isRiderOnly
+    ? roleLabel(ROLE_RIDER)
+    : null;
+
+  /** Everything else the shop runs, in web-sidebar order, filtered by role. */
+  const menu = [
+    {
+      route: Route.CustomersScreen,
+      title: 'Customers',
+      subtitle: 'Your customer book',
+      visible: isShopManager,
+    },
+    {
+      route: Route.ContainerLedgerScreen,
+      title: 'Jar deposits',
+      subtitle: jarsLabel,
+      visible: isShopManager,
+    },
+    {
+      route: Route.PaymentsScreen,
+      title: 'Payments',
+      subtitle: 'Money recorded against your orders',
+      visible: isShopManager,
+    },
+    {
+      route: Route.DisputesScreen,
+      title: 'Disputes',
+      subtitle: 'Jar and deposit claims with ops',
+      visible: isShopManager,
+    },
+    {
+      route: Route.StaffScreen,
+      title: 'Staff',
+      subtitle: 'Managers and riders on your team',
+      visible: isOwner,
+    },
+    {
+      route: Route.PayoutAccountsScreen,
+      title: 'Payout accounts',
+      subtitle: 'Where your settlements are paid',
+      visible: isOwner,
+    },
+    {
+      route: Route.ComplianceScreen,
+      title: 'Compliance',
+      subtitle: 'Listing status and documents on file',
+      visible: true,
+    },
+    {
+      route: Route.SupportScreen,
+      title: 'Support',
+      subtitle: 'Raise a ticket or follow one up',
+      visible: true,
+    },
+    {
+      route: Route.NotificationScreen,
+      title: 'Notifications',
+      subtitle: unread
+        ? `${pluralize(unread, 'unread notification')}`
+        : 'Order updates and account notices',
+      visible: true,
+    },
+  ].filter(item => item.visible);
 
   return (
     <View style={styles.screen}>
@@ -177,8 +252,15 @@ const ShopScreen: React.FC = () => {
       <ScrollView
         contentContainerStyle={styles.body}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => load(true)}
+          />
         }>
+        <StatusBanners />
+
+        {/* One card for who/where/open — identity, the shop switcher and the
+            accepting-orders switch used to be three. */}
         <Card>
           <View style={styles.identity}>
             <LinearGradient
@@ -194,7 +276,12 @@ const ShopScreen: React.FC = () => {
               <Text style={styles.shopName} numberOfLines={1}>
                 {shop?.public_name ?? user?.name ?? 'Your shop'}
               </Text>
-              <Text style={styles.shopMeta}>{shopLocationLabel(shop)}</Text>
+              <Text style={styles.shopMeta} numberOfLines={1}>
+                {shopLocationLabel(shop)}
+                {!!shop?.rating_avg && Number(shop.rating_avg) > 0
+                  ? ` · ${Number(shop.rating_avg).toFixed(1)} ★`
+                  : ''}
+              </Text>
               {shop?.status === 'active' ? (
                 <Text style={styles.verified}>Verified · listed publicly</Text>
               ) : (
@@ -203,113 +290,112 @@ const ShopScreen: React.FC = () => {
                 </Text>
               )}
             </View>
-            {!!shop?.rating_avg && Number(shop.rating_avg) > 0 && (
-              <Pill label={`${Number(shop.rating_avg).toFixed(1)} ★`} tone="primary" />
-            )}
-          </View>
-        </Card>
-
-        {shops.length > 1 && (
-          <Card flush>
-            {shops.map((row, index) => (
-              <ListRow
-                key={row.id}
-                title={row.public_name}
-                subtitle={`${row.area} · ${shopStatusLabel(row)}`}
-                last={index === shops.length - 1}
-                onPress={() => dispatch(setActiveShop(row.id))}
-                right={
-                  row.id === shopId ? (
-                    <Pill label="Active" tone="primary" />
-                  ) : undefined
-                }
-              />
-            ))}
-          </Card>
-        )}
-
-        <Card>
-          <View style={styles.statusRow}>
-            <Text style={styles.cardTitle}>Store status</Text>
             <ShopStatusPill label={shopStatusLabel(shop)} open={isOpen} />
           </View>
 
-          <View style={styles.toggleRow}>
-            <View style={styles.flex}>
-              <Text style={styles.toggleLabel}>Accepting orders</Text>
-              <Text style={styles.helper}>
-                {suspended
-                  ? 'Your shop is on hold with Aqua Flow — support can lift it.'
-                  : 'Turn this off to stop new orders straight away, without changing your hours.'}
-              </Text>
+          {shops.length > 1 && (
+            <View style={styles.switcher}>
+              <Text style={styles.sectionLabel}>Switch shop</Text>
+              <ChipGroup
+                required
+                value={shopId}
+                options={shops.map(row => ({
+                  value: row.id,
+                  label: row.branch_name || row.area || row.public_name,
+                }))}
+                onChange={next => {
+                  const row = shops.find(s => s.id === next);
+                  if (!row || row.id === shopId) return;
+                  // The tab navigator remounts on this and lands on Home.
+                  dispatch(setActiveShop(row.id));
+                  Toast.show({
+                    type: 'success',
+                    text1: `Switched to ${row.public_name}`,
+                  });
+                }}
+              />
             </View>
-            <AppSwitch
-              value={!!shop?.is_open}
-              disabled={suspended || togglingOpen}
-              onValueChange={toggleOpen}
+          )}
+
+          {isShopManager && (
+            <View style={styles.toggleRow}>
+              <View style={styles.flex}>
+                <Text style={styles.toggleLabel}>Accepting orders</Text>
+                <Text style={styles.helper}>
+                  {suspended
+                    ? 'On hold with Aqua Flow — support can lift it.'
+                    : pausedByAquaFlow
+                    ? 'Paused by Aqua Flow until they resume it.'
+                    : isOwner
+                    ? 'Off stops new orders. Hours and holidays still apply.'
+                    : 'Only the owner can pause or reopen the shop.'}
+                </Text>
+              </View>
+              <AppSwitch
+                value={!!shop?.is_open}
+                disabled={!isOwner || suspended || togglingOpen}
+                onValueChange={toggleOpen}
+              />
+            </View>
+          )}
+        </Card>
+
+        {isShopManager && !isOwner && (
+          <InfoNote>
+            You manage hours and holidays. Shop details and delivery zones are
+            view-only — only the owner can change them.
+          </InfoNote>
+        )}
+
+        {isShopManager && (
+          <>
+            <Text style={styles.sectionLabel}>Shop setup</Text>
+            <Card flush>
+              <ListRow
+                dense
+                title="Shop details"
+                subtitle={`${shop?.address_line ?? '—'} · ${capacityLabel(shop)}`}
+                onPress={() => navigation.navigate(Route.ShopDetailsScreen)}
+              />
+              <ListRow
+                dense
+                title="Hours & holidays"
+                subtitle={
+                  holidays.length
+                    ? `${hoursLabel} · ${pluralize(holidays.length, 'holiday')}`
+                    : hoursLabel
+                }
+                onPress={() => navigation.navigate(Route.BusinessHoursScreen)}
+              />
+              <ListRow
+                dense
+                title="Service area & fees"
+                subtitle={zonesLabel}
+                onPress={() => navigation.navigate(Route.ServiceZonesScreen)}
+                last
+              />
+            </Card>
+          </>
+        )}
+
+        <Text style={styles.sectionLabel}>Business</Text>
+        <Card flush>
+          {menu.map((item, index) => (
+            <ListRow
+              dense
+              key={item.route}
+              title={item.title}
+              subtitle={item.subtitle}
+              onPress={() => navigation.navigate(item.route)}
+              last={index === menu.length - 1}
             />
-          </View>
-
-          <Text style={styles.helper}>
-            Even while you're accepting, your listing still follows your opening
-            hours and holidays — set a holiday to close for a whole day.
-          </Text>
-          <View style={styles.statusActions}>
-            <TouchableOpacity
-              style={[styles.softAction, styles.softActionPrimary]}
-              onPress={() => navigation.navigate(Route.BusinessHoursScreen)}>
-              <Text style={[styles.softActionText, styles.softActionPrimaryText]}>
-                Edit hours
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.softAction}
-              onPress={() => navigation.navigate(Route.HolidaysScreen)}>
-              <Text style={styles.softActionText}>Holiday mode</Text>
-            </TouchableOpacity>
-          </View>
+          ))}
         </Card>
 
+        <Text style={styles.sectionLabel}>App and account</Text>
         <Card flush>
           <ListRow
-            title="Shop details"
-            subtitle={`${shop?.address_line ?? '—'} · ${capacityLabel(shop)}`}
-            onPress={() => navigation.navigate(Route.ShopDetailsScreen)}
-          />
-          <ListRow
-            title="Hours & holidays"
-            subtitle={
-              holidays.length
-                ? `${hoursLabel} · ${pluralize(holidays.length, 'holiday')}`
-                : hoursLabel
-            }
-            onPress={() => navigation.navigate(Route.BusinessHoursScreen)}
-          />
-          <ListRow
-            title="Service area & fees"
-            subtitle={zonesLabel}
-            onPress={() => navigation.navigate(Route.ServiceZonesScreen)}
-          />
-          <ListRow
-            title="Container ledger"
-            subtitle={ledgerLabel}
-            onPress={() => navigation.navigate(Route.ContainerLedgerScreen)}
-          />
-          <ListRow
-            title="Compliance"
-            subtitle="Licences, lab report and what customers see"
-            onPress={() => navigation.navigate(Route.ComplianceScreen)}
-          />
-          <ListRow
-            title="Support & disputes"
-            subtitle="Raise a ticket or a jar claim"
-            onPress={() => navigation.navigate(Route.SupportScreen)}
-            last
-          />
-        </Card>
-
-        <Card flush>
-          <ListRow
+            dense
             title="Loud alert for new orders"
             subtitle="Ring even when the phone is on silent"
             right={
@@ -320,11 +406,23 @@ const ShopScreen: React.FC = () => {
             }
           />
           <ListRow
-            title="Profile"
-            subtitle={user?.email}
+            dense
+            title="My account"
+            subtitle={[user?.email, role].filter(Boolean).join(' · ')}
             onPress={() => navigation.navigate(Route.ProfileScreen)}
           />
-          <ListRow title="Log out" onPress={signOut} danger last />
+          <ListRow
+            dense
+            title={signingOut ? 'Logging out…' : 'Log out'}
+            onPress={signingOut ? undefined : signOut}
+            right={
+              signingOut ? (
+                <ActivityIndicator size="small" color={Colors.danger} />
+              ) : undefined
+            }
+            danger
+            last
+          />
         </Card>
       </ScrollView>
     </View>
@@ -337,8 +435,8 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: Colors.white,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 18,
+    paddingTop: 6,
+    paddingBottom: 12,
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
     shadowColor: 'rgba(11,27,43,1)',
@@ -349,56 +447,72 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   title: {
-    fontSize: 25,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: -0.7,
+    letterSpacing: -0.6,
     color: Colors.text,
   },
-  body: {paddingHorizontal: 18, paddingTop: 16, paddingBottom: 30, gap: 11},
+  body: {paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24, gap: 9},
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    marginTop: 6,
+    marginLeft: 4,
+  },
 
-  identity: {flexDirection: 'row', alignItems: 'center', gap: 13},
+  identity: {flexDirection: 'row', alignItems: 'center', gap: 12},
   logo: {
-    width: 54,
-    height: 54,
-    borderRadius: 18,
+    width: 46,
+    height: 46,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoText: {
-    fontSize: 19,
+    fontSize: 17,
     fontWeight: '800',
     letterSpacing: -0.5,
     color: Colors.white,
   },
-  shopName: {fontSize: 15.5, fontWeight: '800', color: Colors.text},
-  shopMeta: {fontSize: 12, color: Colors.textSecondary, marginTop: 2},
-  verified: {fontSize: 12, color: Colors.success, fontWeight: '700', marginTop: 3},
-  suspended: {fontSize: 12, color: Colors.warningText, fontWeight: '700', marginTop: 3},
+  shopName: {fontSize: 15, fontWeight: '800', color: Colors.text},
+  shopMeta: {fontSize: 12, color: Colors.textSecondary, marginTop: 1},
+  verified: {
+    fontSize: 11.5,
+    color: Colors.success,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  suspended: {
+    fontSize: 11.5,
+    color: Colors.warningText,
+    fontWeight: '700',
+    marginTop: 2,
+  },
 
-  statusRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  switcher: {
+    gap: 7,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSoft,
+  },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginTop: 12,
-    paddingTop: 12,
+    paddingTop: 11,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSoft,
   },
   toggleLabel: {fontSize: 13.5, fontWeight: '800', color: Colors.text},
-  cardTitle: {flex: 1, fontSize: 14.5, fontWeight: '800', color: Colors.text},
-  helper: {fontSize: 12, color: Colors.textSecondary, lineHeight: 18, marginTop: 6},
-  statusActions: {flexDirection: 'row', gap: 9, marginTop: 12},
-  softAction: {
-    flex: 1,
-    backgroundColor: Colors.surface3,
-    borderRadius: 14,
-    paddingVertical: 13,
-    alignItems: 'center',
+  helper: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    lineHeight: 17,
+    marginTop: 2,
   },
-  softActionPrimary: {backgroundColor: Colors.primaryTint},
-  softActionText: {fontSize: 13.5, fontWeight: '800', color: Colors.slate},
-  softActionPrimaryText: {color: Colors.primary},
 });
 
 export default ShopScreen;

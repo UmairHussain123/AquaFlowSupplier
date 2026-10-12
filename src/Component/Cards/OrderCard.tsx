@@ -4,14 +4,18 @@ import {Colors} from '../../Constant/Colors';
 import {Fonts} from '../../Constant/Fonts';
 import {formatMoney, statusLabel, toNumber} from '../../helper/helperFunction';
 import {formatTimeOfDay} from '../../helper/dateHelper';
+import {formatPhoneDisplay} from '../../helper/phoneHelper';
 import type {OrderListItem} from '../../Server/Order/OrderType';
+import {addressArea} from '../../Server/Order/OrdersApi';
 import AppButton from '../Common/AppButton';
 import Card from '../Common/Card';
 import Pill from '../Common/Pill';
+import {orderStatusTone, paymentStatusTone} from '../Order/orderTones';
 
 /**
  * One row in the order inbox (SB2) and on the dashboard (SB1). A placed order
- * gets the blue outline plus the Accept / Reject pair; everything later in the
+ * gets the blue outline plus the Accept / Reject pair — only when the caller
+ * passes `onAccept`, so a rider's inbox leaves it out; everything later in the
  * lifecycle is a plain card that opens the detail screen.
  */
 const OrderCard: React.FC<{
@@ -23,7 +27,12 @@ const OrderCard: React.FC<{
 }> = ({order, onPress, onAccept, onReject, busy = false}) => {
   const isNew = order.order_status === 'placed';
   const deposit = toNumber(order.deposit_amount);
-  const area = order.address_snapshot?.area ?? order.address_snapshot?.city;
+  const area = addressArea(order.address_snapshot);
+  // Masked numbers ("0300****567") come back from formatPhoneDisplay unchanged.
+  const phone = formatPhoneDisplay(
+    order.contact_phone ?? order.customer?.phone,
+    '',
+  );
 
   return (
     <Card highlighted={isNew}>
@@ -37,22 +46,17 @@ const OrderCard: React.FC<{
           ) : (
             <Pill
               label={statusLabel(order.order_status)}
-              tone={
-                order.order_status === 'delivered' ||
-                order.order_status === 'completed'
-                  ? 'success'
-                  : order.order_status === 'rejected' ||
-                    order.order_status === 'cancelled'
-                  ? 'muted'
-                  : 'primary'
-              }
+              tone={orderStatusTone(order.order_status)}
             />
           )}
         </View>
 
-        <Text style={styles.customer}>
-          {order.customer?.name ?? `Customer #${order.customer_id}`}
-        </Text>
+        <View>
+          <Text style={styles.customer}>
+            {order.customer?.name ?? `Customer #${order.customer_id}`}
+          </Text>
+          {!!phone && <Text style={styles.phone}>{phone}</Text>}
+        </View>
 
         <View style={styles.chips}>
           <Pill
@@ -60,6 +64,12 @@ const OrderCard: React.FC<{
               order.total_amount,
             )}`}
           />
+          {!!order.payment_status && (
+            <Pill
+              label={`Payment · ${statusLabel(order.payment_status)}`}
+              tone={paymentStatusTone(order.payment_status)}
+            />
+          )}
           {deposit > 0 && (
             <Pill label={`Deposit ${formatMoney(deposit)}`} tone="warning" />
           )}
@@ -104,6 +114,12 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   customer: {fontSize: 15, fontWeight: '800', color: Colors.text},
+  phone: {
+    fontFamily: Fonts.mono,
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 3,
+  },
   chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 7},
   actions: {flexDirection: 'row', gap: 10, marginTop: 12},
   accept: {height: 46, borderRadius: 14},

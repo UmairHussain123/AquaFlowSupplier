@@ -1,8 +1,12 @@
 import {privateAPI} from '../Config';
+import {cityName} from '../Cities/CitiesApi';
 import {ORDER_TABS} from './OrderType';
 import type {
+  CreateOrderPayload,
+  OrderAddressSnapshot,
   OrderDetail,
   OrderItem,
+  OrderListItem,
   OrderListParams,
   OrderMessage,
   OrderStatus,
@@ -19,8 +23,12 @@ import type {
  *   POST /supplier/shops/{shop}/orders/{id}/reject
  *   POST /supplier/shops/{shop}/orders/{id}/prepare
  *   POST /supplier/shops/{shop}/orders/{id}/dispatch
+ *   POST /supplier/shops/{shop}/orders                  (shop places an order)
  *   POST /supplier/shops/{shop}/orders/{id}/deliver     (delivery OTP)
  *   POST /supplier/shops/{shop}/orders/{id}/complete
+ *   POST /supplier/shops/{shop}/orders/{id}/cancel
+ *   POST /supplier/shops/{shop}/orders/{id}/assign-rider
+ *   POST /supplier/shops/{shop}/orders/{id}/delivery-failed
  *   GET  /supplier/shops/{shop}/orders/{id}/messages
  *   POST /supplier/shops/{shop}/orders/{id}/messages
  */
@@ -90,15 +98,73 @@ export const dispatchOrder = async (
   return data.data;
 };
 
-/** The customer reads the code out of their app — the order can't close without it. */
+/**
+ * The customer reads the code out of their app. Orders the shop placed itself
+ * have no code, so leave it out for those.
+ */
 export const deliverOrder = async (
   shopId: number | string,
   orderId: number | string,
-  code: string,
+  code?: string,
 ): Promise<OrderDetail> => {
   const {data} = await privateAPI.post<{data: OrderDetail}>(
     `${ordersBase(shopId)}/${orderId}/deliver`,
-    {code},
+    code ? {code} : {},
+  );
+  return data.data;
+};
+
+/**
+ * Places an order for a customer who isn't using the app. It starts out
+ * accepted — the shop is the one placing it — and has no delivery OTP.
+ * Owner or manager only.
+ */
+export const createOrder = async (
+  shopId: number | string,
+  payload: CreateOrderPayload,
+): Promise<OrderDetail> => {
+  const {data} = await privateAPI.post<{data: OrderDetail}>(
+    ordersBase(shopId),
+    payload,
+  );
+  return data.data;
+};
+
+/** Withdraws an order the shop placed itself, before it leaves for delivery. */
+export const cancelOrder = async (
+  shopId: number | string,
+  orderId: number | string,
+  reason: string,
+): Promise<OrderDetail> => {
+  const {data} = await privateAPI.post<{data: OrderDetail}>(
+    `${ordersBase(shopId)}/${orderId}/cancel`,
+    {reason},
+  );
+  return data.data;
+};
+
+/** Hands an accepted/preparing order to one of the shop's active riders (owner or manager). */
+export const assignOrderRider = async (
+  shopId: number | string,
+  orderId: number | string,
+  riderId: number,
+): Promise<OrderDetail> => {
+  const {data} = await privateAPI.post<{data: OrderDetail}>(
+    `${ordersBase(shopId)}/${orderId}/assign-rider`,
+    {rider_id: riderId},
+  );
+  return data.data;
+};
+
+/** The handover failed while the order was out for delivery. A reason is required. */
+export const failDelivery = async (
+  shopId: number | string,
+  orderId: number | string,
+  reason: string,
+): Promise<OrderDetail> => {
+  const {data} = await privateAPI.post<{data: OrderDetail}>(
+    `${ordersBase(shopId)}/${orderId}/delivery-failed`,
+    {reason},
   );
   return data.data;
 };
@@ -138,6 +204,57 @@ export const sendOrderMessage = async (
 // --------------------
 // Display helpers
 // --------------------
+
+/**
+ * Placed by the shop for a customer who isn't on the app: there is no delivery
+ * OTP, and the shop may cancel it until it leaves for delivery.
+ */
+export const isShopPlaced = (order: Pick<OrderListItem, 'placed_by_id'>): boolean =>
+  order.placed_by_id !== null && order.placed_by_id !== undefined;
+
+/** The shop may withdraw its own order while it is accepted or preparing. */
+export const canCancelOrder = (order: OrderListItem): boolean =>
+  isShopPlaced(order) &&
+  (order.order_status === 'accepted' || order.order_status === 'preparing');
+
+/** The API masks the customer's number outside accepted → out for delivery. */
+export const isMaskedPhone = (phone: string | null | undefined): boolean =>
+  Boolean(phone && /[^+\d\s()-]/.test(phone));
+
+/** One readable line for the rider: street, landmark, area, city — whatever is present. */
+export const addressLine = (
+  snapshot: OrderAddressSnapshot | null | undefined,
+): string | null => {
+  if (!snapshot) return null;
+  const parts = [
+    snapshot.address_line ?? snapshot.line1,
+    snapshot.landmark,
+    snapshot.area,
+    cityName(snapshot.city),
+  ]
+    .map(part => part?.toString().trim())
+    .filter((part): part is string => Boolean(part));
+  return parts.length ? parts.join(', ') : null;
+};
+
+/** Numeric lat/lng, or null when either side is missing or unparseable. */
+export const addressCoords = (
+  snapshot: OrderAddressSnapshot | null | undefined,
+): {lat: number; lng: number} | null => {
+  if (!snapshot) return null;
+  const rawLat = snapshot.latitude ?? snapshot.lat;
+  const rawLng = snapshot.longitude ?? snapshot.lng;
+  if (rawLat === null || rawLat === undefined || rawLat === '') return null;
+  if (rawLng === null || rawLng === undefined || rawLng === '') return null;
+  const lat = Number(rawLat);
+  const lng = Number(rawLng);
+  return Number.isNaN(lat) || Number.isNaN(lng) ? null : {lat, lng};
+};
+
+/** The area line the inbox cards show: area, else the city. */
+export const addressArea = (
+  snapshot: OrderAddressSnapshot | null | undefined,
+): string | null => snapshot?.area || cityName(snapshot?.city) || null;
 
 /** Items carry no line total, so derive it from quantity x unit_price + deposit. */
 export const lineTotal = (item: OrderItem): number =>

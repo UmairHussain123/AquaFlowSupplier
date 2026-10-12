@@ -32,6 +32,8 @@ type Props = {
   suffix?: string;
   style?: StyleProp<ViewStyle>;
   maxLength?: number;
+  /** Shorter field and tighter label, for forms that must fit one screen. */
+  compact?: boolean;
 };
 
 const AppInput: React.FC<Props> = ({
@@ -50,18 +52,25 @@ const AppInput: React.FC<Props> = ({
   suffix,
   style,
   maxLength,
+  compact = false,
 }) => {
   const [focused, setFocused] = useState(false);
   const [hidden, setHidden] = useState(secure);
 
   return (
-    <View style={[styles.wrap, style]}>
-      {!!label && <Text style={styles.label}>{label}</Text>}
+    <View style={[styles.wrap, compact && styles.wrapCompact, style]}>
+      {!!label && (
+        <Text style={[styles.label, compact && styles.labelCompact]}>
+          {label}
+        </Text>
+      )}
 
       <View
         style={[
           styles.field,
+          compact && styles.fieldCompact,
           multiline && styles.fieldMultiline,
+          multiline && compact && styles.fieldMultilineCompact,
           focused && styles.fieldFocused,
           !!error && styles.fieldError,
           !editable && styles.fieldDisabled,
@@ -89,8 +98,10 @@ const AppInput: React.FC<Props> = ({
           maxLength={maxLength}
           style={[
             styles.input,
+            compact && styles.inputCompact,
             mono && {fontFamily: Fonts.mono},
             multiline && styles.inputMultiline,
+            multiline && compact && styles.inputMultilineCompact,
           ]}
         />
 
@@ -128,6 +139,10 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: Colors.fieldBg,
   },
+  wrapCompact: {gap: 5},
+  labelCompact: {fontSize: 11.5},
+  fieldCompact: {minHeight: 44, borderRadius: 12, paddingHorizontal: 12},
+  inputCompact: {fontSize: 14},
   fieldMultiline: {minHeight: 104, alignItems: 'flex-start', paddingVertical: 13},
   fieldFocused: {
     borderColor: Colors.primary,
@@ -144,6 +159,8 @@ const styles = StyleSheet.create({
     padding: 0,
   },
   inputMultiline: {textAlignVertical: 'top', minHeight: 76},
+  fieldMultilineCompact: {minHeight: 66, paddingVertical: 11},
+  inputMultilineCompact: {minHeight: 44},
   suffix: {fontSize: 13, color: Colors.textMuted, fontWeight: '700'},
   toggle: {fontSize: 12.5, fontWeight: '800', color: Colors.primary},
 });

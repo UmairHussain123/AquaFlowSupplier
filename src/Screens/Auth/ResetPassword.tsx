@@ -20,7 +20,10 @@ import {resetPasswordSchema} from '../../Formik/ForgetSchema';
 import {resetPasswordRequest} from '../../Server/User';
 import {apiErrorMessage} from '../../helper/helperFunction';
 
-/** Set a new password with the emailed reset token. */
+/**
+ * Set a new password with the emailed reset code. An expired code sends the
+ * supplier back to Forgot password with the email already filled in.
+ */
 const ResetPassword: React.FC<{navigation: any; route: any}> = ({
   navigation,
   route,
@@ -44,14 +47,30 @@ const ResetPassword: React.FC<{navigation: any; route: any}> = ({
           password: values.password,
           password_confirmation: values.password_confirmation,
         });
-        Toast.show({type: 'success', text1: data.message || 'Password updated'});
-        navigation.replace(Route.Login);
+        Toast.show({
+          type: 'success',
+          text1: data?.message || 'Password updated',
+        });
+        // Back to the sign-in already under this flow rather than stacking a
+        // second one on top of it.
+        navigation.popTo(Route.Login);
       } catch (err) {
-        // A bad or expired token comes back as a 422 whose message says so.
-        setError(apiErrorMessage(err, 'Could not reset your password.'));
+        // A bad or expired code comes back as a 422 whose message says so.
+        setError(
+          apiErrorMessage(
+            err,
+            'Could not reset your password. The reset code may have expired.',
+          ),
+        );
       }
     },
   });
+
+  /** Back to Forgot password (the one under this screen when there is one). */
+  const requestNewCode = () =>
+    navigation.popTo(Route.ForgetPassword, {
+      email: (formik.values.email ?? '').trim(),
+    });
 
   return (
     <View style={styles.screen}>
@@ -74,10 +93,11 @@ const ResetPassword: React.FC<{navigation: any; route: any}> = ({
           />
 
           <AppInput
-            label="Reset token"
+            label="Reset code"
             value={formik.values.token}
             onChangeText={formik.handleChange('token')}
             onBlur={formik.handleBlur('token')}
+            placeholder="Paste the code from your email"
             autoCapitalize="none"
             mono
             error={formik.touched.token && formik.errors.token}
@@ -116,6 +136,13 @@ const ResetPassword: React.FC<{navigation: any; route: any}> = ({
             loading={formik.isSubmitting}
             style={styles.submit}
           />
+
+          <Text style={styles.footer}>
+            Code expired?{' '}
+            <Text style={styles.link} onPress={requestNewCode}>
+              Request a new one
+            </Text>
+          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -128,6 +155,14 @@ const styles = StyleSheet.create({
   body: {padding: 20, gap: 14, paddingBottom: 40},
   apiError: {fontSize: 13, color: Colors.danger, fontWeight: '600'},
   submit: {height: 54},
+  footer: {
+    marginTop: 4,
+    fontSize: 12.5,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  link: {color: Colors.primary, fontWeight: '800'},
 });
 
 export default ResetPassword;

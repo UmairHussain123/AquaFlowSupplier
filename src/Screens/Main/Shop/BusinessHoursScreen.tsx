@@ -17,9 +17,11 @@ import AppButton from '../../../Component/Common/AppButton';
 import AppHeader from '../../../Component/Common/AppHeader';
 import AppSwitch from '../../../Component/Common/AppSwitch';
 import Card from '../../../Component/Common/Card';
+import EmptyState from '../../../Component/Common/EmptyState';
 import InfoNote from '../../../Component/Common/InfoNote';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
+import {useSupplierRoles} from '../../../hooks/useSupplierRoles';
 import {apiErrorMessage} from '../../../helper/helperFunction';
 import {getOpsDraft} from '../../../helper/opsDraft';
 import {
@@ -40,14 +42,17 @@ import {
  * The PUT replaces the whole week, so all seven days always go out; the editor
  * also back-fills any day the API omits so a shop that never set hours still
  * gets a full week to edit. A shop with no hours at all is pre-filled from the
- * application draft the supplier filled in on SA5.
+ * application draft the supplier filled in on SA5. Owners and managers can
+ * both edit hours, as on the portal; riders get a no-access state.
  */
 const BusinessHoursScreen: React.FC = () => {
   const shopId = useActiveShopId();
+  const {isShopManager} = useSupplierRoles();
 
   const [week, setWeek] = useState<BusinessHourInput[]>([]);
   const [original, setOriginal] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [picker, setPicker] = useState<{
     day: number;
@@ -55,11 +60,12 @@ const BusinessHoursScreen: React.FC = () => {
   } | null>(null);
 
   const load = useCallback(async () => {
-    if (!shopId) {
+    if (!shopId || !isShopManager) {
       setLoading(false);
       return;
     }
 
+    setLoadError(null);
     try {
       const hours = await listBusinessHours(shopId);
       let next = weekFromApi(hours);
@@ -80,14 +86,11 @@ const BusinessHoursScreen: React.FC = () => {
       setWeek(next);
       setOriginal(JSON.stringify(weekFromApi(hours)));
     } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(error, 'Could not load your opening hours.'),
-      });
+      setLoadError(apiErrorMessage(error, 'Could not load your opening hours.'));
     } finally {
       setLoading(false);
     }
-  }, [shopId]);
+  }, [isShopManager, shopId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -102,6 +105,32 @@ const BusinessHoursScreen: React.FC = () => {
     setWeek(prev =>
       prev.map(row => (row.day_of_week === day ? {...row, ...patch} : row)),
     );
+
+  /** The first open day with both times set, in the Monday-first order shown. */
+  const copySource = useMemo(
+    () =>
+      WEEK_ORDER.map(day => week.find(row => row.day_of_week === day)).find(
+        row => !!row && !row.is_closed && !!row.opens_at && !!row.closes_at,
+      ),
+    [week],
+  );
+
+  /** Copy the first open day's times onto every other open day, as the portal does. */
+  const copyToOpenDays = () => {
+    if (!copySource) return;
+    setWeek(prev =>
+      prev.map(row =>
+        row.is_closed
+          ? row
+          : {...row, opens_at: copySource.opens_at, closes_at: copySource.closes_at},
+      ),
+    );
+    Toast.show({
+      type: 'success',
+      text1: `${DAY_NAMES[copySource.day_of_week]}'s hours copied`,
+      text2: 'Every open day now uses the same times — save to keep them.',
+    });
+  };
 
   const save = async () => {
     if (!shopId) return;
@@ -144,13 +173,69 @@ const BusinessHoursScreen: React.FC = () => {
       date.getMinutes(),
     ).padStart(2, '0')}`;
 
+  if (!isShopManager) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Opening hours" />
+        <View style={styles.body}>
+          <Card>
+            <EmptyState
+              title="For owners and managers"
+              message="Opening hours are set by the shop owner or manager."
+            />
+          </Card>
+        </View>
+      </View>
+    );
+  }
+
   if (loading) return <ScreenLoader />;
+
+  if (loadError || !shopId) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Opening hours" />
+        <View style={styles.body}>
+          <Card>
+            <EmptyState
+              title={shopId ? "Couldn't load your hours" : 'No shop yet'}
+              message={loadError ?? 'No shop is linked to this account yet.'}
+              actionLabel={shopId ? 'Try again' : undefined}
+              onAction={() => {
+                setLoading(true);
+                load();
+              }}
+            />
+          </Card>
+        </View>
+      </View>
+    );
+  }
+
+  const openDays = week.filter(row => !row.is_closed).length;
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Opening hours" />
+      <AppHeader
+        title="Opening hours"
+        subtitle={openDays ? `Open ${openDays} of 7 days` : 'Closed all week'}
+      />
 
       <ScrollView contentContainerStyle={styles.body}>
+        <View style={styles.toolbar}>
+          <Text style={styles.toolbarHint}>
+            Customers can only order while you're open.
+          </Text>
+          <AppButton
+            title="Copy to all open days"
+            variant="secondary"
+            small
+            block={false}
+            disabled={!copySource || openDays < 2}
+            onPress={copyToOpenDays}
+          />
+        </View>
+
         {WEEK_ORDER.map(dayIndex => {
           const day = week.find(row => row.day_of_week === dayIndex);
           if (!day) return null;
@@ -207,7 +292,7 @@ const BusinessHoursScreen: React.FC = () => {
 
       <View style={styles.footer}>
         <AppButton
-          title="Save week"
+          title={dirty ? 'Save week' : 'Saved'}
           onPress={save}
           loading={saving}
           disabled={!dirty || !!problems.length}
@@ -237,6 +322,14 @@ const BusinessHoursScreen: React.FC = () => {
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: Colors.surface},
   body: {padding: 20, gap: 11, paddingBottom: 30},
+
+  toolbar: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  toolbarHint: {
+    flex: 1,
+    fontSize: 12.5,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
 
   dayHead: {flexDirection: 'row', alignItems: 'center', gap: 12},
   dayName: {flex: 1, fontSize: 14.5, fontWeight: '800', color: Colors.text},

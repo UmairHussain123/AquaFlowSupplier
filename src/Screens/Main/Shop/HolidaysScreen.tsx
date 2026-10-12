@@ -1,4 +1,4 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {
   Alert,
   FlatList,
@@ -24,6 +24,7 @@ import InfoNote from '../../../Component/Common/InfoNote';
 import Pill from '../../../Component/Common/Pill';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
+import {useSupplierRoles} from '../../../hooks/useSupplierRoles';
 import {dateKey, formatHolidayDate, todayKey} from '../../../helper/dateHelper';
 import {apiErrorMessage} from '../../../helper/helperFunction';
 import {
@@ -37,12 +38,15 @@ import {
 } from '../../../Server/ShopSettings/ShopSettingsApi';
 
 /** One-off closed days. A holiday closes the shop for the whole day regardless
- *  of its opening hours. */
+ *  of its opening hours. Owners and managers both manage these, as on the
+ *  portal — and either can tidy away a holiday that has already passed. */
 const HolidaysScreen: React.FC = () => {
   const shopId = useActiveShopId();
+  const {isShopManager} = useSupplierRoles();
 
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [date, setDate] = useState(new Date());
@@ -51,21 +55,19 @@ const HolidaysScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!shopId) {
+    if (!shopId || !isShopManager) {
       setLoading(false);
       return;
     }
+    setLoadError(null);
     try {
       setHolidays(sortHolidays(await listHolidays(shopId)));
     } catch (err) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(err, 'Could not load your holidays.'),
-      });
+      setLoadError(apiErrorMessage(err, 'Could not load your holidays.'));
     } finally {
       setLoading(false);
     }
-  }, [shopId]);
+  }, [isShopManager, shopId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -105,11 +107,19 @@ const HolidaysScreen: React.FC = () => {
     }
   };
 
+  const upcomingCount = useMemo(
+    () => holidays.filter(holiday => !isPastHoliday(holiday)).length,
+    [holidays],
+  );
+
   const remove = (holiday: Holiday) => {
     if (!shopId) return;
+    const label = formatHolidayDate(holidayDateKey(holiday));
     Alert.alert(
       'Remove this holiday?',
-      `${formatHolidayDate(holidayDateKey(holiday))} will follow your normal hours again.`,
+      isPastHoliday(holiday)
+        ? `${label} has already passed — this only tidies your list.`
+        : `${label} will follow your normal hours again.`,
       [
         {text: 'Keep it', style: 'cancel'},
         {
@@ -132,12 +142,56 @@ const HolidaysScreen: React.FC = () => {
     );
   };
 
+  if (!isShopManager) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Holidays" />
+        <View style={styles.body}>
+          <Card>
+            <EmptyState
+              title="For owners and managers"
+              message="Holidays are set by the shop owner or manager."
+            />
+          </Card>
+        </View>
+      </View>
+    );
+  }
+
   if (loading) return <ScreenLoader />;
+
+  if (loadError || !shopId) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Holidays" />
+        <View style={styles.body}>
+          <Card>
+            <EmptyState
+              title={shopId ? "Couldn't load your holidays" : 'No shop yet'}
+              message={loadError ?? 'No shop is linked to this account yet.'}
+              actionLabel={shopId ? 'Try again' : undefined}
+              onAction={() => {
+                setLoading(true);
+                load();
+              }}
+            />
+          </Card>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
       <AppHeader
         title="Holidays"
+        subtitle={
+          upcomingCount
+            ? `${upcomingCount} upcoming`
+            : holidays.length
+            ? 'None upcoming'
+            : undefined
+        }
         right={
           <TouchableOpacity onPress={() => setAdding(true)}>
             <Text style={styles.add}>Add</Text>
@@ -161,13 +215,12 @@ const HolidaysScreen: React.FC = () => {
                   {!!item.reason && <Text style={styles.reason}>{item.reason}</Text>}
                 </View>
 
-                {past ? (
-                  <Pill label="Passed" tone="muted" />
-                ) : (
-                  <TouchableOpacity onPress={() => remove(item)}>
-                    <Text style={styles.remove}>Remove</Text>
-                  </TouchableOpacity>
-                )}
+                {past && <Pill label="Passed" tone="muted" />}
+                <TouchableOpacity
+                  onPress={() => remove(item)}
+                  hitSlop={{top: 10, bottom: 10, left: 6, right: 6}}>
+                  <Text style={styles.remove}>Remove</Text>
+                </TouchableOpacity>
               </View>
             </Card>
           );

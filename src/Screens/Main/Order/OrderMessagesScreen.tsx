@@ -39,7 +39,11 @@ const OrderMessagesScreen: React.FC<{route: any}> = ({route}) => {
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
-    if (!shopId || !orderId) return;
+    // Nothing to fetch — drop the spinner rather than leave it up for good.
+    if (!shopId || !orderId) {
+      setLoading(false);
+      return;
+    }
     try {
       setMessages(await listOrderMessages(shopId, orderId));
     } catch (error) {
@@ -60,7 +64,7 @@ const OrderMessagesScreen: React.FC<{route: any}> = ({route}) => {
 
   const send = async () => {
     const text = draft.trim();
-    if (!text || !shopId) return;
+    if (!text || !shopId || !orderId) return;
 
     setSending(true);
     try {

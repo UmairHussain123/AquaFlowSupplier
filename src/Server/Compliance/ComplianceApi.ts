@@ -1,111 +1,130 @@
-import dayjs from '../../helper/dateHelper';
+import {getProfile} from '../Account/AccountApi';
+import type {Shop} from '../Shops/ShopsApi';
 
 /**
  * SC2 (Compliance centre).
  *
- * The Aquago Supplier API exposes no document endpoints yet — uploading,
- * listing and expiring evidence is admin-side, exactly as in the supplier web
- * portal, where this module is `lib/dummy-data.ts`. Everything below is
- * therefore local placeholder data with the shapes the API is expected to
- * return, so wiring it up later is a one-file change.
+ * The Aquago Supplier API exposes no supplier-facing document endpoints yet —
+ * no list of the document set, no approval state, no expiry dates and no
+ * upload route. Like the supplier web portal, the app therefore shows only what
+ * it actually knows — the shop's listing status (GET /supplier/shops) and the
+ * supplier account's approval status (GET /supplier/profile) — and sends
+ * anything document-related to ops through a support ticket. Nothing here is
+ * invented.
  */
 
-export type ComplianceStatus = 'verified' | 'expiring' | 'expired' | 'missing';
-
-export interface ComplianceDocument {
-  id: string;
+export interface RequiredDocument {
   name: string;
-  status: ComplianceStatus;
-  /** ISO date the evidence stays valid through, null when it never expires. */
-  valid_till: string | null;
-  detail: string;
+  why: string;
 }
 
-export interface ComplianceHistoryEntry {
-  date: string;
-  action: string;
-}
-
-export interface ComplianceSummary {
-  documents: ComplianceDocument[];
-  history: ComplianceHistoryEntry[];
-  /** The single line customers see on the public shop page. */
-  customerVisible: string;
-  /** Null when nothing is close to expiring. */
-  banner: {message: string; helper: string} | null;
-}
-
-const DOCUMENTS: ComplianceDocument[] = [
+/** The document set collected with the application. No state is held against it. */
+export const REQUIRED_DOCUMENTS: RequiredDocument[] = [
   {
-    id: 'lab_test',
-    name: 'Lab water test',
-    status: 'expiring',
-    valid_till: dayjs().add(18, 'day').toISOString(),
-    detail: 'Not later than 6 months old',
+    name: 'Lab water test report',
+    why: 'Proves the water is safe. Ops re-check this on a fixed cycle.',
   },
   {
-    id: 'business_licence',
     name: 'Food / business licence',
-    status: 'verified',
-    valid_till: dayjs().add(7, 'month').toISOString(),
-    detail: 'Plant / shop trade licence',
+    why: 'Your licence to trade, as issued in your city.',
   },
   {
-    id: 'owner_cnic',
     name: 'Owner CNIC',
-    status: 'verified',
-    valid_till: null,
-    detail: 'Front & back, matched to the owner name',
+    why: 'Identity check on the account owner.',
   },
   {
-    id: 'shop_photos',
     name: 'Shop & plant photos',
-    status: 'verified',
-    valid_till: null,
-    detail: 'Signboard, inside, filling area · min 3',
+    why: 'Shows the premises and filling setup.',
   },
 ];
 
-export const daysUntil = (iso: string | null): number | null => {
-  if (!iso) return null;
-  return dayjs(iso).startOf('day').diff(dayjs().startOf('day'), 'day');
-};
+export interface ListingStatus {
+  /** True only when customers can find the shop. */
+  listed: boolean;
+  tone: 'success' | 'warning' | 'danger' | 'neutral';
+  message: string;
+}
 
-export const getComplianceSummary = async (): Promise<ComplianceSummary> => {
-  const soonest = DOCUMENTS.filter(doc => doc.valid_till)
-    .map(doc => ({doc, days: daysUntil(doc.valid_till) ?? Infinity}))
-    .sort((a, b) => a.days - b.days)[0];
-
-  const banner =
-    soonest && soonest.days <= 30
-      ? {
-          message: `${soonest.doc.name} expires in ${soonest.days} days`,
-          helper: 'Upload the new report to stay listed to customers.',
-        }
-      : null;
-
-  return {
-    documents: DOCUMENTS,
-    history: [
-      {date: dayjs().subtract(2, 'month').format('D MMM'), action: 'lab report v2 approved'},
-      {date: dayjs().subtract(6, 'month').format('D MMM'), action: 'licence renewed — approved'},
-      {date: dayjs().subtract(8, 'month').format('D MMM'), action: 'lab report v1 expired'},
-    ],
-    customerVisible:
-      '✓ Quality verified · lab test on file · licence valid',
-    banner,
-  };
-};
-
-export const complianceStatusLabel = (status: ComplianceStatus): string => {
-  switch (status) {
-    case 'verified':
-      return 'Verified';
-    case 'expiring':
-      return 'Expiring soon';
-    case 'expired':
-      return 'Expired';
-    default:
-      return 'Not uploaded';
+/** Honest copy for the shop's admin-controlled `status`. */
+export const listingStatus = (shop: Shop | null): ListingStatus => {
+  if (!shop) {
+    return {
+      listed: false,
+      tone: 'neutral',
+      message: 'No shop is linked to this account yet.',
+    };
   }
+
+  switch (shop.status) {
+    case 'active':
+      return {
+        listed: true,
+        tone: 'success',
+        message: shop.is_open
+          ? 'Your shop is approved and listed to customers.'
+          : 'Your shop is approved and listed, but you have paused taking orders yourself.',
+      };
+    case 'paused':
+      return {
+        listed: false,
+        tone: 'warning',
+        message:
+          "Aqua Flow has paused your shop, so customers can't order from it right now. Your own open/closed switch won't change this.",
+      };
+    case 'suspended':
+      return {
+        listed: false,
+        tone: 'danger',
+        message:
+          "Your shop is suspended and hidden from customers. You can't lift this yourself — support can tell you why.",
+      };
+    default:
+      return {
+        listed: false,
+        tone: 'neutral',
+        message: 'Your shop is not currently listed to customers.',
+      };
+  }
+};
+
+/** What a non-active supplier account status means, or null when there is nothing to say. */
+export const accountStatusMessage = (status: string | null): string | null => {
+  switch (status) {
+    case 'suspended':
+      return "Aqua Flow has suspended your supplier account. Customers can't order from your shops until it is lifted.";
+    case 'expired':
+      return 'Your supplier approval has expired. Your compliance documents need renewing before Aqua Flow can keep your shops live.';
+    default:
+      return null;
+  }
+};
+
+// The status banners sit on two tabs that both refetch on focus — a short
+// per-user cache keeps that to one profile read instead of one per tab switch.
+const CACHE_MS = 60 * 1000;
+let cached: {userId: string; status: string | null; at: number} | null = null;
+
+/**
+ * The supplier account's approval status (`supplier_profile.status`), e.g.
+ * "active", "suspended" or "expired". Null when the account has no supplier
+ * profile.
+ */
+export const getSupplierAccountStatus = async (
+  userId: string | number | null | undefined,
+  force = false,
+): Promise<string | null> => {
+  const key = String(userId ?? '');
+  if (
+    !force &&
+    cached &&
+    cached.userId === key &&
+    Date.now() - cached.at < CACHE_MS
+  ) {
+    return cached.status;
+  }
+
+  const profile = await getProfile();
+  const status = profile.supplier_profile?.status ?? null;
+  cached = {userId: key, status, at: Date.now()};
+  return status;
 };

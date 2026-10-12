@@ -10,23 +10,33 @@ import {
   BusinessHoursScreen,
   ComplianceScreen,
   CompleteDeliveryScreen,
+  ChangePasswordScreen,
   ContainerLedgerScreen,
   CreateTicketScreen,
+  CustomerFormScreen,
+  CustomersScreen,
   DisputeDetailScreen,
   DisputesScreen,
+  EditProfileScreen,
   ForgetPassword,
   HolidaysScreen,
   Login,
+  NewOrderScreen,
   NotificationScreen,
   OrderDetailScreen,
   OrderMessagesScreen,
+  PaymentsScreen,
+  PayoutAccountsScreen,
   ProductFormScreen,
   ProfileScreen,
   RaiseDisputeScreen,
   ResetPassword,
   ServiceZonesScreen,
+  SettlementDetailScreen,
   ShopDetailsScreen,
   SplashScreen,
+  StaffFormScreen,
+  StaffScreen,
   StatementsScreen,
   SupportScreen,
   TicketDetailScreen,
@@ -67,6 +77,7 @@ const Routes: React.FC = () => (
       name={Route.OrderMessagesScreen}
       component={OrderMessagesScreen}
     />
+    <Stack.Screen name={Route.NewOrderScreen} component={NewOrderScreen} />
 
     {/* Catalog */}
     <Stack.Screen name={Route.ProductFormScreen} component={ProductFormScreen} />
@@ -78,6 +89,15 @@ const Routes: React.FC = () => (
 
     {/* Money */}
     <Stack.Screen name={Route.StatementsScreen} component={StatementsScreen} />
+    <Stack.Screen
+      name={Route.SettlementDetailScreen}
+      component={SettlementDetailScreen}
+    />
+    <Stack.Screen
+      name={Route.PayoutAccountsScreen}
+      component={PayoutAccountsScreen}
+    />
+    <Stack.Screen name={Route.PaymentsScreen} component={PaymentsScreen} />
 
     {/* Shop settings */}
     <Stack.Screen name={Route.ShopDetailsScreen} component={ShopDetailsScreen} />
@@ -105,6 +125,20 @@ const Routes: React.FC = () => (
     {/* Account */}
     <Stack.Screen name={Route.NotificationScreen} component={NotificationScreen} />
     <Stack.Screen name={Route.ProfileScreen} component={ProfileScreen} />
+    <Stack.Screen name={Route.EditProfileScreen} component={EditProfileScreen} />
+    <Stack.Screen
+      name={Route.ChangePasswordScreen}
+      component={ChangePasswordScreen}
+    />
+
+    {/* Customers & staff */}
+    <Stack.Screen name={Route.CustomersScreen} component={CustomersScreen} />
+    <Stack.Screen
+      name={Route.CustomerFormScreen}
+      component={CustomerFormScreen}
+    />
+    <Stack.Screen name={Route.StaffScreen} component={StaffScreen} />
+    <Stack.Screen name={Route.StaffFormScreen} component={StaffFormScreen} />
   </Stack.Navigator>
 );
 

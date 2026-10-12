@@ -21,10 +21,17 @@ import Card from '../../../Component/Common/Card';
 import EmptyState from '../../../Component/Common/EmptyState';
 import InfoNote from '../../../Component/Common/InfoNote';
 import KeyValueRow from '../../../Component/Common/KeyValueRow';
+import Pill from '../../../Component/Common/Pill';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
 import {serviceZoneSchema} from '../../../Formik/ShopSettingsSchema';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
-import {apiErrorMessage, formatMoney} from '../../../helper/helperFunction';
+import {useSupplierRoles} from '../../../hooks/useSupplierRoles';
+import {
+  apiErrorMessage,
+  formatMoney,
+  pluralize,
+  statusLabel,
+} from '../../../helper/helperFunction';
 import {getOpsDraft} from '../../../helper/opsDraft';
 import {
   createServiceZone,
@@ -40,33 +47,34 @@ import {
  *
  * A zone is either `radius` or `polygon`. The app creates radius zones only — a
  * polygon's shape can't be drawn here — so for an existing polygon the form
- * edits just the fee, minimum and ETA and says so.
+ * edits just the fee, minimum and ETA and says so. Only the owner changes
+ * zones; a manager sees them read-only, as on the portal.
  */
 const ServiceZonesScreen: React.FC = () => {
   const shopId = useActiveShopId();
+  const {isOwner, isShopManager} = useSupplierRoles();
 
   const [zones, setZones] = useState<ServiceZone[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [editing, setEditing] = useState<ServiceZone | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!shopId) {
+    if (!shopId || !isShopManager) {
       setLoading(false);
       return;
     }
+    setLoadError(null);
     try {
       setZones(await listServiceZones(shopId));
     } catch (err) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(err, 'Could not load your delivery zones.'),
-      });
+      setLoadError(apiErrorMessage(err, 'Could not load your delivery zones.'));
     } finally {
       setLoading(false);
     }
-  }, [shopId]);
+  }, [isShopManager, shopId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -88,7 +96,7 @@ const ServiceZonesScreen: React.FC = () => {
     },
     validationSchema: serviceZoneSchema,
     onSubmit: async values => {
-      if (!shopId) return;
+      if (!shopId || !isOwner) return;
       setError(null);
 
       const payload = {
@@ -152,9 +160,12 @@ const ServiceZonesScreen: React.FC = () => {
 
   const remove = (zone: ServiceZone) => {
     if (!shopId) return;
+    const onlyZone = zones.length === 1;
     Alert.alert(
-      'Remove this zone?',
-      'Customers inside it stop seeing your shop.',
+      onlyZone ? 'Remove your only zone?' : 'Remove this zone?',
+      onlyZone
+        ? `This is your only zone — once the ${zoneLabel(zone)} zone is gone, customers won't be able to order from you until you add another.`
+        : `Customers inside the ${zoneLabel(zone)} zone stop seeing your shop.`,
       [
         {text: 'Keep it', style: 'cancel'},
         {
@@ -180,7 +191,44 @@ const ServiceZonesScreen: React.FC = () => {
   const fieldError = (name: string) =>
     (formik.touched as any)[name] && (formik.errors as any)[name];
 
+  if (!isShopManager) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Service area & fees" />
+        <View style={styles.body}>
+          <Card>
+            <EmptyState
+              title="For owners and managers"
+              message="Delivery zones are set by the shop owner."
+            />
+          </Card>
+        </View>
+      </View>
+    );
+  }
+
   if (loading) return <ScreenLoader />;
+
+  if (loadError || !shopId) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Service area & fees" />
+        <View style={styles.body}>
+          <Card>
+            <EmptyState
+              title={shopId ? "Couldn't load your zones" : 'No shop yet'}
+              message={loadError ?? 'No shop is linked to this account yet.'}
+              actionLabel={shopId ? 'Try again' : undefined}
+              onAction={() => {
+                setLoading(true);
+                load();
+              }}
+            />
+          </Card>
+        </View>
+      </View>
+    );
+  }
 
   const isPolygon = editing?.zone_type === 'polygon';
 
@@ -188,10 +236,13 @@ const ServiceZonesScreen: React.FC = () => {
     <View style={styles.screen}>
       <AppHeader
         title="Service area & fees"
+        subtitle={zones.length ? pluralize(zones.length, 'delivery zone') : undefined}
         right={
-          <TouchableOpacity onPress={openCreate}>
-            <Text style={styles.add}>Add</Text>
-          </TouchableOpacity>
+          isOwner ? (
+            <TouchableOpacity onPress={openCreate}>
+              <Text style={styles.add}>Add</Text>
+            </TouchableOpacity>
+          ) : undefined
         }
       />
 
@@ -199,16 +250,30 @@ const ServiceZonesScreen: React.FC = () => {
         data={zones}
         keyExtractor={item => String(item.id)}
         contentContainerStyle={styles.body}
+        ListHeaderComponent={
+          !isOwner ? (
+            <InfoNote tone="neutral">
+              Delivery zones can only be changed by the shop owner.
+            </InfoNote>
+          ) : undefined
+        }
         renderItem={({item}) => (
           <Card>
             <View style={styles.head}>
-              <Text style={styles.zoneTitle}>{zoneLabel(item)}</Text>
-              <TouchableOpacity onPress={() => setEditing(item)}>
-                <Text style={styles.link}>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => remove(item)}>
-                <Text style={styles.remove}>Remove</Text>
-              </TouchableOpacity>
+              <View style={styles.titleWrap}>
+                <Text style={styles.zoneTitle}>{zoneLabel(item)}</Text>
+                <Pill label={statusLabel(item.zone_type ?? '')} tone="muted" />
+              </View>
+              {isOwner && (
+                <>
+                  <TouchableOpacity onPress={() => setEditing(item)}>
+                    <Text style={styles.link}>Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => remove(item)}>
+                    <Text style={styles.remove}>Remove</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
 
             <View style={styles.lines}>
@@ -230,8 +295,12 @@ const ServiceZonesScreen: React.FC = () => {
         ListEmptyComponent={
           <EmptyState
             title="No delivery zone yet"
-            message="Customers can only find you once at least one zone covers them."
-            actionLabel="Add your first zone"
+            message={
+              isOwner
+                ? 'Customers can only find you once at least one zone covers them.'
+                : "Customers can't order until the shop owner adds a delivery zone."
+            }
+            actionLabel={isOwner ? 'Add your first zone' : undefined}
             onAction={openCreate}
           />
         }
@@ -320,8 +389,14 @@ const styles = StyleSheet.create({
   body: {padding: 20, gap: 11, paddingBottom: 30},
 
   head: {flexDirection: 'row', alignItems: 'center', gap: 14},
-  zoneTitle: {
+  titleWrap: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  zoneTitle: {
     fontFamily: Fonts.mono,
     fontSize: 14,
     fontWeight: '700',

@@ -23,13 +23,26 @@ const SelectField: React.FC<{
   onChange: (value: string | number) => void;
   error?: string | false | null | any;
   disabled?: boolean;
-}> = ({label, placeholder = 'Select', value, options, onChange, error, disabled}) => {
+  /** Matches AppInput's compact field: shorter, sentence-case label. */
+  compact?: boolean;
+}> = ({
+  label,
+  placeholder = 'Select',
+  value,
+  options,
+  onChange,
+  error,
+  disabled,
+  compact = false,
+}) => {
   const [open, setOpen] = useState(false);
   const selected = options.find(option => option.value === value);
 
   return (
-    <View style={styles.wrap}>
-      {!!label && <Text style={styles.label}>{label}</Text>}
+    <View style={[styles.wrap, compact && styles.wrapCompact]}>
+      {!!label && (
+        <Text style={compact ? styles.labelCompact : styles.label}>{label}</Text>
+      )}
 
       <TouchableOpacity
         activeOpacity={0.8}
@@ -37,12 +50,17 @@ const SelectField: React.FC<{
         onPress={() => setOpen(true)}
         style={[
           styles.field,
+          compact && styles.fieldCompact,
           !!error && styles.fieldError,
           disabled && styles.fieldDisabled,
         ]}>
         <Text
           numberOfLines={1}
-          style={[styles.value, !selected && styles.placeholder]}>
+          style={[
+            styles.value,
+            compact && styles.valueCompact,
+            !selected && styles.placeholder,
+          ]}>
           {selected?.label ?? placeholder}
         </Text>
         <Text style={styles.caret}>▾</Text>
@@ -109,6 +127,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  wrapCompact: {gap: 5},
+  labelCompact: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+  },
+  fieldCompact: {minHeight: 44, borderRadius: 12, paddingHorizontal: 12},
+  valueCompact: {fontSize: 14},
   fieldError: {borderColor: Colors.danger},
   fieldDisabled: {backgroundColor: Colors.surface3},
   value: {flex: 1, fontSize: 14.5, fontWeight: '600', color: Colors.text},

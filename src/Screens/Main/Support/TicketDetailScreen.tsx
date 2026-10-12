@@ -16,6 +16,7 @@ import AppButton from '../../../Component/Common/AppButton';
 import AppHeader from '../../../Component/Common/AppHeader';
 import AppInput from '../../../Component/Common/AppInput';
 import Card from '../../../Component/Common/Card';
+import EmptyState from '../../../Component/Common/EmptyState';
 import InfoNote from '../../../Component/Common/InfoNote';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
 import StatusBadge from '../../../Component/Common/StatusBadge';
@@ -41,18 +42,22 @@ const TicketDetailScreen: React.FC<{route: any}> = ({route}) => {
 
   const [ticket, setTicket] = useState<SupportTicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
-    if (!ticketId) return;
+    if (!ticketId) {
+      setLoading(false);
+      return;
+    }
     try {
       setTicket(await getTicket(ticketId));
+      setLoadError(null);
     } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(error, 'Could not load the ticket.'),
-      });
+      const message = apiErrorMessage(error, 'Could not load the ticket.');
+      setLoadError(message);
+      Toast.show({type: 'error', text1: message});
     } finally {
       setLoading(false);
     }
@@ -85,12 +90,32 @@ const TicketDetailScreen: React.FC<{route: any}> = ({route}) => {
   };
 
   if (loading) return <ScreenLoader />;
-  if (!ticket) return <View style={styles.screen} />;
+
+  if (!ticket) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Support ticket" />
+        <View style={styles.body}>
+          <Card>
+            <EmptyState
+              title="Couldn't open this ticket"
+              message={loadError ?? 'This ticket could not be found.'}
+              actionLabel={ticketId ? 'Try again' : undefined}
+              onAction={() => {
+                setLoading(true);
+                load();
+              }}
+            />
+          </Card>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
       <AppHeader
-        title={`TCK-${ticket.id}`}
+        title={`TKT-${ticket.id}`}
         subtitle={categoryLabel(ticket.category)}
         mono
         right={<StatusBadge status={ticket.status} />}
@@ -113,8 +138,16 @@ const TicketDetailScreen: React.FC<{route: any}> = ({route}) => {
                   <Text style={styles.meta}>About order #{ticket.order_id}</Text>
                 )}
                 <Text style={styles.meta}>
-                  Raised {formatShortDateTime(ticket.created_at)}
-                  {ticket.assignee ? ` · assigned to ${ticket.assignee.name}` : ''}
+                  {ticket.user?.name
+                    ? `Raised by ${ticket.user.name} · ${formatShortDateTime(
+                        ticket.created_at,
+                      )}`
+                    : `Raised ${formatShortDateTime(ticket.created_at)}`}
+                </Text>
+                <Text style={styles.meta}>
+                  {ticket.assignee?.name
+                    ? `Handled by ${ticket.assignee.name}`
+                    : 'Not assigned to anyone at ops yet'}
                 </Text>
                 {!!ticket.sla_due_at && (
                   <Text
@@ -134,7 +167,7 @@ const TicketDetailScreen: React.FC<{route: any}> = ({route}) => {
             return (
               <View style={[styles.bubble, mine && styles.bubbleMine]}>
                 <Text style={[styles.sender, mine && styles.senderMine]}>
-                  {item.sender?.name ?? (mine ? 'You' : 'Aqua Flow ops')}
+                  {mine ? 'You' : item.sender?.name ?? 'Aqua Flow ops'}
                 </Text>
                 <Text style={[styles.message, mine && styles.messageMine]}>
                   {item.message}

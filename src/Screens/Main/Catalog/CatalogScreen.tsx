@@ -1,5 +1,6 @@
-import React, {useCallback, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   RefreshControl,
   ScrollView,
@@ -17,15 +18,23 @@ import {Colors} from '../../../Constant/Colors';
 import Route from '../../../Constant/NavigationStrings';
 import AppInput from '../../../Component/Common/AppInput';
 import Card from '../../../Component/Common/Card';
+import ChipGroup from '../../../Component/Common/ChipGroup';
 import EmptyState from '../../../Component/Common/EmptyState';
 import KeyValueRow from '../../../Component/Common/KeyValueRow';
+import LoadMoreFooter from '../../../Component/Common/LoadMoreFooter';
 import Pill from '../../../Component/Common/Pill';
 import ProductCard from '../../../Component/Cards/ProductCard';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
+import SortPicker, {
+  type SortOption,
+} from '../../../Component/Catalog/SortPicker';
+import {usePagedList} from '../../../hooks/usePagedList';
 import {PlusIcon} from '../../../Component/Icons/TabIcons';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
 import {useDebounce} from '../../../hooks/useDebounce';
+import {useSupplierRoles} from '../../../hooks/useSupplierRoles';
 import {
+  resetCatalogFilters,
   setCatalogBrand,
   setCatalogCategory,
   setCatalogLowStock,
@@ -39,78 +48,162 @@ import {
   productLabel,
   returnModeLabel,
   updateShopProduct,
+  type ProductBrand,
+  type ProductCategory,
   type ShopProduct,
+  type ShopProductListParams,
 } from '../../../Server/Product/ProductsApi';
-import {apiErrorMessage, formatMoney, toNumber} from '../../../helper/helperFunction';
+import {
+  apiErrorMessage,
+  formatMoney,
+  toNumber,
+} from '../../../helper/helperFunction';
+
+const PER_PAGE = 20;
+
+type SortBy = NonNullable<ShopProductListParams['sort_by']>;
+type ListedFilter = 'true' | 'false';
+
+/** The portal's sort menu: each field both ways. */
+const SORT_OPTIONS: SortOption[] = [
+  {value: 'id:desc', label: 'Recently added — newest first', short: 'Newest'},
+  {value: 'id:asc', label: 'Recently added — oldest first', short: 'Oldest'},
+  {value: 'price:desc', label: 'Price — high to low', short: 'Price ↓'},
+  {value: 'price:asc', label: 'Price — low to high', short: 'Price ↑'},
+  {
+    value: 'stock_quantity:desc',
+    label: 'Stock — high to low',
+    short: 'Stock ↓',
+  },
+  {value: 'stock_quantity:asc', label: 'Stock — low to high', short: 'Stock ↑'},
+  {
+    value: 'created_at:desc',
+    label: 'Date created — newest first',
+    short: 'Created ↓',
+  },
+  {
+    value: 'created_at:asc',
+    label: 'Date created — oldest first',
+    short: 'Created ↑',
+  },
+];
+
+const LISTED_OPTIONS: {value: ListedFilter; label: string}[] = [
+  {value: 'true', label: 'Listed'},
+  {value: 'false', label: 'Hidden'},
+];
+
+/** Adds what's new to a chip list without ever dropping an option. */
+const mergeOptions = <T extends {id: number; name: string}>(
+  prev: T[],
+  next: T[],
+): T[] => {
+  const byId = new Map(prev.map(item => [item.id, item]));
+  let changed = false;
+  next.forEach(item => {
+    if (!byId.has(item.id)) {
+      byId.set(item.id, item);
+      changed = true;
+    }
+  });
+  if (!changed) return prev;
+  return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+};
 
 /**
  * SB5 — the shop's listings, their stock and the deposits attached to them.
+ * Owners and managers only.
  *
- * The filter dropdowns are built from whatever the current listings carry: the
- * supplier API has no catalog/category/brand browse endpoint (those are
- * admin-only), so there is nothing else to populate them from.
+ * The supplier API has no category/brand browse endpoint, so those chips are
+ * built from the listings themselves — accumulated across every page loaded
+ * for this shop, so narrowing the list never makes an option disappear.
  */
 const CatalogScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
   const shopId = useActiveShopId();
+  const {isShopManager} = useSupplierRoles();
 
-  const {catalogSearch, catalogCategoryId, catalogBrandId, catalogLowStockOnly} =
-    useSelector((state: any) => state.filter);
+  const {
+    catalogSearch,
+    catalogCategoryId,
+    catalogBrandId,
+    catalogLowStockOnly,
+  } = useSelector((state: any) => state.filter);
 
-  const [listings, setListings] = useState<ShopProduct[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [listed, setListed] = useState<ListedFilter | null>(null);
+  const [sort, setSort] = useState(SORT_OPTIONS[0].value);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [brands, setBrands] = useState<ProductBrand[]>([]);
 
-  const search = useDebounce(catalogSearch, 400);
+  const search = useDebounce((catalogSearch ?? '').trim(), 400);
 
-  const load = useCallback(
-    async (isRefresh = false) => {
-      if (!shopId) {
-        setLoading(false);
-        return;
-      }
-      if (isRefresh) setRefreshing(true);
+  const params = useMemo<ShopProductListParams>(() => {
+    const [sortBy, sortOrder] = sort.split(':') as [SortBy, 'asc' | 'desc'];
+    return {
+      search: search || undefined,
+      category_id: catalogCategoryId ?? undefined,
+      brand_id: catalogBrandId ?? undefined,
+      is_active: listed ?? undefined,
+      low_stock: catalogLowStockOnly ? 'true' : undefined,
+      sort_by: sortBy,
+      sort_order: sortOrder,
+    };
+  }, [
+    catalogBrandId,
+    catalogCategoryId,
+    catalogLowStockOnly,
+    listed,
+    search,
+    sort,
+  ]);
 
-      try {
-        const page = await listShopProducts(shopId, {
-          search: search || undefined,
-          category_id: catalogCategoryId ?? undefined,
-          brand_id: catalogBrandId ?? undefined,
-          low_stock: catalogLowStockOnly ? 'true' : undefined,
-          per_page: 100,
-          sort_by: 'created_at',
-          sort_order: 'desc',
-        });
-        setListings(page.data ?? []);
-      } catch (error) {
-        Toast.show({
-          type: 'error',
-          text1: apiErrorMessage(error, 'Could not load your catalog.'),
-        });
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [catalogBrandId, catalogCategoryId, catalogLowStockOnly, search, shopId],
+  const fetchPage = useMemo(
+    () =>
+      shopId && isShopManager
+        ? (page: number) =>
+            listShopProducts(shopId, {...params, per_page: PER_PAGE, page})
+        : null,
+    [isShopManager, params, shopId],
   );
 
+  const list = usePagedList<ShopProduct>(
+    fetchPage,
+    JSON.stringify({shopId, ...params}),
+    'Could not load your catalog.',
+  );
+  const {reload, rows: listings, setRows: setListings} = list;
+
+  // Runs on focus (an edit elsewhere may have changed a listing) and again
+  // whenever a filter changes, since that gives `reload` a new identity.
   useFocusEffect(
     useCallback(() => {
-      load();
-    }, [load]),
+      reload();
+    }, [reload]),
   );
 
-  const categories = useMemo(() => collectCategories(listings), [listings]);
-  const brands = useMemo(() => collectBrands(listings), [listings]);
+  // A different shop has different categories and brands.
+  useEffect(() => {
+    setCategories([]);
+    setBrands([]);
+  }, [shopId]);
+
+  useEffect(() => {
+    // Rows from the previous shop can still be on screen right after a switch.
+    const own = listings.filter(
+      listing => String(listing.shop_id) === String(shopId),
+    );
+    setCategories(prev => mergeOptions(prev, collectCategories(own)));
+    setBrands(prev => mergeOptions(prev, collectBrands(own)));
+  }, [listings, shopId]);
 
   const depositLines = useMemo(
     () =>
       listings
         .filter(listing => toNumber(listing.deposit_amount) > 0)
         .map(listing => ({
+          key: listing.id,
           label: `${productLabel(listing)} deposit`,
           value: formatMoney(listing.deposit_amount),
         })),
@@ -123,7 +216,9 @@ const CatalogScreen: React.FC = () => {
 
     // Optimistic — the toggle should feel instant, and a failure puts it back.
     setListings(prev =>
-      prev.map(row => (row.id === listing.id ? {...row, is_active: next} : row)),
+      prev.map(row =>
+        row.id === listing.id ? {...row, is_active: next} : row,
+      ),
     );
 
     try {
@@ -143,15 +238,29 @@ const CatalogScreen: React.FC = () => {
     }
   };
 
-  const lowStockCount = listings.filter(isLowStock).length;
+  const filtersActive = Boolean(
+    catalogSearch ||
+      catalogCategoryId ||
+      catalogBrandId ||
+      listed ||
+      catalogLowStockOnly,
+  );
 
-  return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Catalog</Text>
+  const clearFilters = () => {
+    dispatch(resetCatalogFilters());
+    setListed(null);
+  };
+
+  const lowStockCount = listings.filter(isLowStock).length;
+  const addProduct = () => navigation.navigate(Route.ProductFormScreen, {});
+
+  const header = (
+    <View style={styles.header}>
+      <Text style={styles.title}>Catalog</Text>
+      {isShopManager && !!shopId && (
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={() => navigation.navigate(Route.ProductFormScreen, {})}
+          onPress={addProduct}
           style={styles.add}>
           <LinearGradient
             colors={[Colors.gradFrom, Colors.gradTo]}
@@ -163,17 +272,51 @@ const CatalogScreen: React.FC = () => {
           <PlusIcon color={Colors.white} size={15} />
           <Text style={styles.addText}>Add product</Text>
         </TouchableOpacity>
-      </View>
+      )}
+    </View>
+  );
 
-      {loading ? (
+  if (!isShopManager) {
+    return (
+      <View style={styles.screen}>
+        {header}
+        <EmptyState
+          title="Catalog is for owners and managers"
+          message="Products, prices and stock are managed by the shop owner or a manager. Your deliveries are on the Orders tab."
+        />
+      </View>
+    );
+  }
+
+  if (!shopId) {
+    return (
+      <View style={styles.screen}>
+        {header}
+        <EmptyState
+          title="No shop selected"
+          message="Pick a shop on the Shop tab to see its catalog."
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.screen}>
+      {header}
+
+      {list.loading ? (
         <ScreenLoader />
       ) : (
         <FlatList
           data={listings}
           keyExtractor={item => String(item.id)}
           contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />
+            <RefreshControl
+              refreshing={list.refreshing}
+              onRefresh={() => reload('refresh')}
+            />
           }
           ListHeaderComponent={
             <View style={styles.filters}>
@@ -187,51 +330,78 @@ const CatalogScreen: React.FC = () => {
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
                 contentContainerStyle={styles.chips}>
                 <TouchableOpacity
                   onPress={() =>
                     dispatch(setCatalogLowStock(!catalogLowStockOnly))
                   }>
                   <Pill
-                    label={`Low stock${lowStockCount ? ` · ${lowStockCount}` : ''}`}
+                    label={`Low stock${
+                      lowStockCount ? ` · ${lowStockCount}` : ''
+                    }`}
                     tone={catalogLowStockOnly ? 'warning' : 'neutral'}
                   />
                 </TouchableOpacity>
 
-                {categories.map(category => (
+                {LISTED_OPTIONS.map(option => (
                   <TouchableOpacity
-                    key={`c-${category.id}`}
+                    key={option.value}
+                    accessibilityState={{selected: listed === option.value}}
                     onPress={() =>
-                      dispatch(
-                        setCatalogCategory(
-                          catalogCategoryId === category.id ? null : category.id,
-                        ),
-                      )
+                      setListed(listed === option.value ? null : option.value)
                     }>
                     <Pill
-                      label={category.name}
-                      tone={catalogCategoryId === category.id ? 'primary' : 'neutral'}
-                    />
-                  </TouchableOpacity>
-                ))}
-
-                {brands.map(brand => (
-                  <TouchableOpacity
-                    key={`b-${brand.id}`}
-                    onPress={() =>
-                      dispatch(
-                        setCatalogBrand(
-                          catalogBrandId === brand.id ? null : brand.id,
-                        ),
-                      )
-                    }>
-                    <Pill
-                      label={brand.name}
-                      tone={catalogBrandId === brand.id ? 'primary' : 'neutral'}
+                      label={option.label}
+                      tone={listed === option.value ? 'primary' : 'neutral'}
                     />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
+
+              {categories.length > 0 && (
+                <ChipGroup
+                  options={categories.map(category => ({
+                    value: category.id,
+                    label: category.name,
+                  }))}
+                  value={catalogCategoryId ?? null}
+                  onChange={value => dispatch(setCatalogCategory(value))}
+                />
+              )}
+
+              {brands.length > 0 && (
+                <ChipGroup
+                  options={brands.map(brand => ({
+                    value: brand.id,
+                    label: brand.name,
+                  }))}
+                  value={catalogBrandId ?? null}
+                  onChange={value => dispatch(setCatalogBrand(value))}
+                />
+              )}
+
+              <View style={styles.countRow}>
+                <Text style={styles.count}>
+                  {list.total} listing{list.total === 1 ? '' : 's'}
+                </Text>
+                {list.fetching && (
+                  <ActivityIndicator color={Colors.primary} size="small" />
+                )}
+                <View style={styles.flex} />
+                {filtersActive && (
+                  <TouchableOpacity
+                    onPress={clearFilters}
+                    hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}>
+                    <Text style={styles.clear}>Clear filters</Text>
+                  </TouchableOpacity>
+                )}
+                <SortPicker
+                  options={SORT_OPTIONS}
+                  value={sort}
+                  onChange={setSort}
+                />
+              </View>
             </View>
           }
           renderItem={({item}) => (
@@ -248,37 +418,66 @@ const CatalogScreen: React.FC = () => {
             />
           )}
           ListEmptyComponent={
-            <EmptyState
-              title="No listings yet"
-              message="Add the jars and bottles this shop sells, with their price, deposit and stock."
-              actionLabel="Add your first product"
-              onAction={() => navigation.navigate(Route.ProductFormScreen, {})}
-            />
+            list.error ? (
+              <EmptyState
+                title="Couldn't load your catalog"
+                message={list.error}
+                actionLabel="Try again"
+                onAction={() => reload('refresh')}
+              />
+            ) : filtersActive ? (
+              <EmptyState
+                title="No listings match these filters"
+                message="Try a different search, or clear the filters to see everything."
+                actionLabel="Clear filters"
+                onAction={clearFilters}
+              />
+            ) : (
+              <EmptyState
+                title="No listings yet"
+                message="Add the jars and bottles this shop sells, with their price, deposit and stock."
+                actionLabel="Add your first product"
+                onAction={addProduct}
+              />
+            )
           }
           ListFooterComponent={
             listings.length ? (
               <View style={styles.footer}>
+                <LoadMoreFooter
+                  shown={listings.length}
+                  total={list.total}
+                  hasMore={list.hasMore}
+                  loading={list.loadingMore}
+                  onLoadMore={list.loadMore}
+                  noun="listings"
+                />
+
                 <Card>
-                  <Text style={styles.cardTitle}>Container & deposit settings</Text>
+                  <Text style={styles.cardTitle}>
+                    Container & deposit settings
+                  </Text>
                   <View style={styles.depositLines}>
                     {depositLines.length ? (
                       depositLines.map(line => (
                         <KeyValueRow
-                          key={line.label}
+                          key={line.key}
                           label={line.label}
                           value={line.value}
                         />
                       ))
                     ) : (
                       <Text style={styles.muted}>
-                        No listing on this shop takes a refundable deposit.
+                        No listing shown here takes a refundable deposit.
                       </Text>
                     )}
                     <KeyValueRow
                       label="Return modes in use"
                       value={
                         Array.from(
-                          new Set(listings.map(l => returnModeLabel(l.return_mode))),
+                          new Set(
+                            listings.map(l => returnModeLabel(l.return_mode)),
+                          ),
                         ).join(', ') || '—'
                       }
                     />
@@ -290,10 +489,12 @@ const CatalogScreen: React.FC = () => {
                 </Card>
 
                 <TouchableOpacity
-                  onPress={() => navigation.navigate(Route.ContainerLedgerScreen)}>
+                  onPress={() =>
+                    navigation.navigate(Route.ContainerLedgerScreen)
+                  }>
                   <Card>
                     <Text style={styles.link}>
-                      Container ledger — who's holding your jars
+                      Jar deposits — who's holding your jars
                     </Text>
                   </Card>
                 </TouchableOpacity>
@@ -308,11 +509,12 @@ const CatalogScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: Colors.surface},
+  flex: {flex: 1},
   header: {
     backgroundColor: Colors.white,
     paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 18,
+    paddingTop: 6,
+    paddingBottom: 12,
     borderBottomLeftRadius: 26,
     borderBottomRightRadius: 26,
     flexDirection: 'row',
@@ -326,9 +528,9 @@ const styles = StyleSheet.create({
   },
   title: {
     flex: 1,
-    fontSize: 25,
+    fontSize: 22,
     fontWeight: '800',
-    letterSpacing: -0.7,
+    letterSpacing: -0.6,
     color: Colors.text,
   },
   add: {
@@ -350,6 +552,9 @@ const styles = StyleSheet.create({
   body: {padding: 18, gap: 12, paddingBottom: 30},
   filters: {gap: 10, marginBottom: 2},
   chips: {gap: 7, paddingRight: 20},
+  countRow: {flexDirection: 'row', alignItems: 'center', gap: 10},
+  count: {fontSize: 12.5, fontWeight: '700', color: Colors.textSecondary},
+  clear: {fontSize: 12.5, fontWeight: '800', color: Colors.primary},
 
   footer: {gap: 12, marginTop: 2},
   cardTitle: {fontSize: 14.5, fontWeight: '800', color: Colors.text},

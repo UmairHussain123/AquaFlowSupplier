@@ -21,14 +21,18 @@ import InfoNote from '../../Component/Common/InfoNote';
 import OptionCard from '../../Component/Common/OptionCard';
 import PasswordChecklist from '../../Component/Common/PasswordChecklist';
 import ProgressSteps from '../../Component/Common/ProgressSteps';
+import SelectField, {
+  type SelectOption,
+} from '../../Component/Common/SelectField';
 import {ChevronLeft, PinIcon} from '../../Component/Icons/TabIcons';
 import {
   APPLY_STEPS,
   CNIC_MAX_DIGITS,
-  applySchema,
   formatCnic,
+  makeApplySchema,
 } from '../../Formik/ApplySchema';
 import {apiErrorMessage} from '../../helper/helperFunction';
+import {formatPakistaniPhone} from '../../helper/phoneHelper';
 import {formatCoordinate, getCurrentCoordinates} from '../../helper/locationHelper';
 import {PermissionError, permissionAlert} from '../../helper/permissionHelper';
 import {
@@ -40,7 +44,12 @@ import {
   saveSubmittedApplication,
   type OpsDraft,
 } from '../../helper/opsDraft';
-import {SUPPLIER_TYPES} from '../../Server/AuthType/authType';
+import {
+  SUPPLIER_TYPES,
+  type SupplierApplyPayload,
+  type SupplierType,
+} from '../../Server/AuthType/authType';
+import {listCities, type City} from '../../Server/Cities/CitiesApi';
 import {applySupplierRequest} from '../../Server/User';
 import DocumentPicker, {type PickedFile} from './ApplySteps/DocumentPicker';
 import {DAY_INITIALS, WEEK_ORDER} from '../../Server/ShopSettings/ShopSettingsApi';
@@ -56,6 +65,10 @@ import {DAY_INITIALS, WEEK_ORDER} from '../../Server/ShopSettings/ShopSettingsAp
  *  - Step 4's hours and service area are kept as a local draft and pre-fill
  *    Shop settings once the shop exists (a shop id is needed before the
  *    business-hours and service-zone endpoints can be called at all).
+ *
+ * The city is picked from GET /supplier/cities, as on the web form, and both
+ * `shop_city_id` and `shop_city` are sent. If the list can't load the field
+ * falls back to typing the city, so the application never waits on it.
  */
 const STEP_TITLES = [
   'Supplier application',
@@ -77,6 +90,7 @@ const initialValues = {
   shop_description: '',
   shop_address_line: '',
   shop_landmark: '',
+  shop_city_id: '',
   shop_city: '',
   shop_area: '',
   shop_latitude: '',
@@ -85,39 +99,88 @@ const initialValues = {
   shop_whatsapp_number: '',
 };
 
+type ApplyValues = typeof initialValues;
+
+/** How long the city list gets before the form falls back to typing the city. */
+const CITIES_TIMEOUT_MS = 10000;
+
+/** "Karachi (Sindh)", or "… · Planned" where Aqua Flow isn't live yet — as on the web. */
+const cityLabel = (city: City): string =>
+  `${city.name}${city.province ? ` (${city.province})` : ''}${
+    city.is_active === false ? ' · Planned' : ''
+  }`;
+
+/**
+ * A saved draft back into form values. Only string fields are taken (numbers
+ * are stringified), so an old or damaged draft can't put a null where the
+ * submit calls .trim().
+ */
+const restoreDraft = (draft: Record<string, any>): ApplyValues => {
+  const values = {...initialValues};
+  (Object.keys(initialValues) as (keyof ApplyValues)[]).forEach(key => {
+    const value = draft?.[key];
+    if (typeof value === 'string') values[key] = value;
+    else if (typeof value === 'number') values[key] = String(value);
+  });
+  return values;
+};
+
 const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [ops, setOps] = useState<OpsDraft>(DEFAULT_OPS_DRAFT);
   const [documents, setDocuments] = useState<Record<string, PickedFile[]>>({});
   const [locating, setLocating] = useState(false);
+  const [cities, setCities] = useState<City[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(true);
+
+  /** The picker is used whenever the list loaded with at least one city. */
+  const cityPicker = cities.length > 0;
+
+  const validationSchema = useMemo(
+    () => makeApplySchema({requireCityId: cityPicker}),
+    [cityPicker],
+  );
 
   const formik = useFormik({
     initialValues,
-    validationSchema: applySchema,
+    validationSchema,
     onSubmit: async values => {
       setError(null);
       try {
-        const application = await applySupplierRequest({
+        const city = cities.find(c => String(c.id) === values.shop_city_id);
+
+        // The typed payload has no shop_city_id yet; supplierApply posts the
+        // object as-is, so the id rides along like it does from the web form.
+        const payload: SupplierApplyPayload & {shop_city_id?: number} = {
           name: values.name.trim(),
           email: values.email.trim(),
           password: values.password,
-          supplier_type: values.supplier_type as any,
+          supplier_type: values.supplier_type as SupplierType,
           owner_name: values.owner_name.trim(),
-          legal_name: values.legal_name.trim() || values.shop_public_name.trim(),
+          legal_name:
+            values.legal_name.trim() || values.shop_public_name.trim(),
           cnic_number: values.cnic_number.trim(),
           shop_public_name: values.shop_public_name.trim(),
           shop_branch_name: values.shop_branch_name.trim(),
           shop_description: values.shop_description.trim(),
           shop_address_line: values.shop_address_line.trim(),
           shop_landmark: values.shop_landmark.trim(),
-          shop_city: values.shop_city.trim(),
+          ...(city ? {shop_city_id: city.id} : {}),
+          shop_city: city?.name ?? values.shop_city.trim(),
           shop_area: values.shop_area.trim(),
           shop_latitude: Number(values.shop_latitude),
           shop_longitude: Number(values.shop_longitude),
-          shop_contact_phone: values.shop_contact_phone.trim(),
-          shop_whatsapp_number: values.shop_whatsapp_number.trim(),
-        });
+          // 0300-1234567, the shape the web form sends.
+          shop_contact_phone: formatPakistaniPhone(
+            values.shop_contact_phone.trim(),
+          ),
+          shop_whatsapp_number: formatPakistaniPhone(
+            values.shop_whatsapp_number.trim(),
+          ),
+        };
+
+        const application = await applySupplierRequest(payload);
 
         await saveOpsDraft(ops);
         await saveSubmittedApplication(application);
@@ -138,11 +201,77 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
   // Restore a saved draft on mount so "Save draft" survives leaving the app.
   useEffect(() => {
     getApplicationDraft().then(draft => {
-      if (draft) formik.setValues({...initialValues, ...draft});
+      if (draft) formik.setValues(restoreDraft(draft));
     });
     // Run once — re-running on every formik change would fight the user's typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The city list, fetched signed out like the web form does. A failure, an
+  // empty list or no answer within CITIES_TIMEOUT_MS all leave the free-text
+  // city in place.
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('City list timed out')),
+        CITIES_TIMEOUT_MS,
+      );
+    });
+
+    Promise.race([listCities({signedOut: true}), timeout])
+      .then(list => {
+        if (cancelled || !Array.isArray(list)) return;
+        setCities(
+          list.filter(
+            c =>
+              typeof c?.id === 'number' &&
+              typeof c?.name === 'string' &&
+              !!c.name,
+          ),
+        );
+      })
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timer);
+        if (!cancelled) setCitiesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
+  const pickCity = (city: City) => {
+    formik.setFieldValue('shop_city_id', String(city.id));
+    formik.setFieldValue('shop_city', city.name);
+  };
+
+  // Keep the picker pointing at a real city: a draft's typed name is matched
+  // to the list, an empty city defaults to Karachi (as on the web), and an id
+  // the list no longer has is cleared so the supplier picks again.
+  useEffect(() => {
+    if (!cityPicker) return;
+    const id = formik.values.shop_city_id;
+    if (id && cities.some(c => String(c.id) === id)) return;
+
+    const typed = (formik.values.shop_city ?? '').trim().toLowerCase();
+    const match = typed
+      ? cities.find(c => c.name.toLowerCase() === typed)
+      : cities.find(c => c.name.toLowerCase() === 'karachi') ?? cities[0];
+
+    if (match) pickCity(match);
+    else if (id) formik.setFieldValue('shop_city_id', '');
+    // Driven by the list and the two city fields only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cities, formik.values.shop_city_id, formik.values.shop_city]);
+
+  const cityOptions: SelectOption[] = useMemo(
+    () => cities.map(c => ({value: String(c.id), label: cityLabel(c)})),
+    [cities],
+  );
 
   const supplierType = formik.values.supplier_type;
 
@@ -220,7 +349,7 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
     Toast.show({type: 'success', text1: 'Draft saved on this device'});
   };
 
-  const fieldError = (name: keyof typeof initialValues) =>
+  const fieldError = (name: keyof ApplyValues) =>
     (formik.touched as any)[name] && (formik.errors as any)[name];
 
   /** Fills the pin from the device's GPS — the fields stay editable after. */
@@ -370,7 +499,7 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
                     error={fieldError('owner_name')}
                   />
                   <AppInput
-                    label="CNIC number"
+                    label="CNIC number (optional)"
                     value={formik.values.cnic_number}
                     onChangeText={value =>
                       formik.setFieldValue('cnic_number', formatCnic(value))
@@ -420,15 +549,37 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
                     onChangeText={formik.handleChange('shop_landmark')}
                     placeholder="Optional"
                   />
-                  <View style={styles.pair}>
-                    <AppInput
+                  {(cityPicker || citiesLoading) && (
+                    <SelectField
                       label="City"
-                      value={formik.values.shop_city}
-                      onChangeText={formik.handleChange('shop_city')}
-                      onBlur={formik.handleBlur('shop_city')}
-                      error={fieldError('shop_city')}
-                      style={styles.flex}
+                      placeholder={
+                        citiesLoading ? 'Loading cities…' : 'Select your city'
+                      }
+                      value={formik.values.shop_city_id || null}
+                      options={cityOptions}
+                      disabled={citiesLoading}
+                      onChange={value => {
+                        const city = cities.find(
+                          c => String(c.id) === String(value),
+                        );
+                        if (city) pickCity(city);
+                      }}
+                      error={
+                        fieldError('shop_city_id') || fieldError('shop_city')
+                      }
                     />
+                  )}
+                  <View style={styles.pair}>
+                    {!cityPicker && !citiesLoading && (
+                      <AppInput
+                        label="City"
+                        value={formik.values.shop_city}
+                        onChangeText={formik.handleChange('shop_city')}
+                        onBlur={formik.handleBlur('shop_city')}
+                        error={fieldError('shop_city')}
+                        style={styles.flex}
+                      />
+                    )}
                     <AppInput
                       label="Area"
                       value={formik.values.shop_area}
@@ -517,8 +668,14 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
                   <AppInput
                     label="Order phone"
                     value={formik.values.shop_contact_phone}
-                    onChangeText={formik.handleChange('shop_contact_phone')}
+                    onChangeText={value =>
+                      formik.setFieldValue(
+                        'shop_contact_phone',
+                        formatPakistaniPhone(value),
+                      )
+                    }
                     onBlur={formik.handleBlur('shop_contact_phone')}
+                    placeholder="0300-1234567"
                     keyboardType="phone-pad"
                     mono
                     error={fieldError('shop_contact_phone')}
@@ -526,10 +683,17 @@ const ApplyScreen: React.FC<{navigation: any}> = ({navigation}) => {
                   <AppInput
                     label="WhatsApp number"
                     value={formik.values.shop_whatsapp_number}
-                    onChangeText={formik.handleChange('shop_whatsapp_number')}
+                    onChangeText={value =>
+                      formik.setFieldValue(
+                        'shop_whatsapp_number',
+                        formatPakistaniPhone(value),
+                      )
+                    }
+                    onBlur={formik.handleBlur('shop_whatsapp_number')}
+                    placeholder="Optional · 0300-1234567"
                     keyboardType="phone-pad"
                     mono
-                    placeholder="Optional"
+                    error={fieldError('shop_whatsapp_number')}
                   />
                 </View>
               </Card>

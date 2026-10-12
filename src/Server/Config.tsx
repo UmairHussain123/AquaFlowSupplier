@@ -19,6 +19,13 @@ export const BASE_URL =
 
 console.log('baseUrl>>', BASE_URL);
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    /** Skip the global error toast — for background reads like the bell badge. */
+    suppressToast?: boolean;
+  }
+}
+
 // --------------------
 // Axios instances
 // --------------------

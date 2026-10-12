@@ -12,13 +12,14 @@ import {useFormik} from 'formik';
 import Toast from 'react-native-toast-message';
 
 import {Colors} from '../../../Constant/Colors';
+import Route from '../../../Constant/NavigationStrings';
 import AppButton from '../../../Component/Common/AppButton';
 import AppHeader from '../../../Component/Common/AppHeader';
 import AppInput from '../../../Component/Common/AppInput';
 import AppSwitch from '../../../Component/Common/AppSwitch';
 import Card from '../../../Component/Common/Card';
-import InfoNote from '../../../Component/Common/InfoNote';
 import SelectField from '../../../Component/Common/SelectField';
+import CatalogProductPicker from '../../../Component/Catalog/CatalogProductPicker';
 import {productSchema} from '../../../Formik/ProductSchema';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
 import {apiErrorMessage} from '../../../helper/helperFunction';
@@ -26,19 +27,34 @@ import {
   RETURN_MODES,
   addShopProduct,
   deleteShopProduct,
+  productLabel,
+  productSize,
   updateShopProduct,
+  type CatalogPickerProduct,
   type ReturnMode,
   type ShopProduct,
 } from '../../../Server/Product/ProductsApi';
 
+/** "Nestle Pure Life · 19L · Nestle" — what the edit header names the listing by. */
+const listingTitle = (listing: ShopProduct): string =>
+  [
+    productLabel(listing),
+    listing.product ? productSize(listing.product) : null,
+    listing.product?.brand?.name,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
 /**
  * Add / edit a shop product listing.
  *
- * Two constraints come from the API, not the UI:
- *  - "Add product" takes a numeric `product_id` because the supplier API has no
- *    catalog browse endpoint to pick from.
+ *  - A new listing picks its master product from the catalog
+ *    (GET /supplier/products); products the shop already sells are greyed out.
  *  - `deposit_amount` only applies to `refundable_deposit`; the form forces it
  *    to 0 for the other modes so the payload stays consistent.
+ *  - Editing stock here overwrites the count, as on the portal. It is only
+ *    sent when changed, so an untouched form can't undo an adjustment made
+ *    meanwhile.
  */
 const ProductFormScreen: React.FC<{navigation: any; route: any}> = ({
   navigation,
@@ -50,6 +66,7 @@ const ProductFormScreen: React.FC<{navigation: any; route: any}> = ({
 
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [picked, setPicked] = useState<CatalogPickerProduct | null>(null);
 
   const formik = useFormik({
     initialValues: {
@@ -59,7 +76,7 @@ const ProductFormScreen: React.FC<{navigation: any; route: any}> = ({
       deposit_amount: listing ? String(Number(listing.deposit_amount)) : '0',
       return_mode: (listing?.return_mode ?? 'refundable_deposit') as ReturnMode,
       stock_quantity: listing ? String(listing.stock_quantity) : '0',
-      low_stock_threshold: listing ? String(listing.low_stock_threshold) : '5',
+      low_stock_threshold: listing ? String(listing.low_stock_threshold) : '10',
       is_active: listing?.is_active ?? true,
     },
     validationSchema: productSchema,
@@ -85,14 +102,27 @@ const ProductFormScreen: React.FC<{navigation: any; route: any}> = ({
 
       try {
         if (isEdit && listing) {
-          await updateShopProduct(shopId, listing.id, payload);
-          Toast.show({type: 'success', text1: 'Listing updated'});
+          const {stock_quantity, ...rest} = payload;
+          await updateShopProduct(
+            shopId,
+            listing.id,
+            stock_quantity === listing.stock_quantity
+              ? rest
+              : {...rest, stock_quantity},
+          );
+          Toast.show({
+            type: 'success',
+            text1: `${productLabel(listing)} updated`,
+          });
         } else {
-          await addShopProduct(shopId, {
+          const saved = await addShopProduct(shopId, {
             ...payload,
             product_id: Number(values.product_id),
           });
-          Toast.show({type: 'success', text1: 'Listing added'});
+          Toast.show({
+            type: 'success',
+            text1: `${saved?.product?.name ?? 'Product'} added to your shop`,
+          });
         }
         navigation.goBack();
       } catch (err) {
@@ -138,7 +168,7 @@ const ProductFormScreen: React.FC<{navigation: any; route: any}> = ({
     <View style={styles.screen}>
       <AppHeader
         title={isEdit ? 'Edit listing' : 'Add product'}
-        subtitle={isEdit ? listing?.product?.name ?? undefined : undefined}
+        subtitle={listing ? listingTitle(listing) : undefined}
       />
 
       <KeyboardAvoidingView
@@ -147,24 +177,40 @@ const ProductFormScreen: React.FC<{navigation: any; route: any}> = ({
         <ScrollView
           contentContainerStyle={styles.body}
           keyboardShouldPersistTaps="handled">
-          {!isEdit && (
-            <>
-              <AppInput
-                label="Catalog product id"
-                value={formik.values.product_id}
-                onChangeText={formik.handleChange('product_id')}
-                onBlur={formik.handleBlur('product_id')}
-                keyboardType="number-pad"
-                mono
-                error={fieldError('product_id')}
+          {isEdit && listing ? (
+            <Card>
+              <Text style={styles.productName}>{productLabel(listing)}</Text>
+              <Text style={styles.productMeta}>
+                {[
+                  listing.product ? productSize(listing.product) : null,
+                  listing.product?.brand?.name,
+                  listing.product?.category?.name,
+                  `catalog ID ${listing.product_id}`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </Text>
+            </Card>
+          ) : shopId ? (
+            <View style={styles.picker}>
+              <CatalogProductPicker
+                shopId={shopId}
+                selected={picked}
+                error={formik.submitCount > 0 && formik.errors.product_id}
+                onSelect={product => {
+                  setPicked(product);
+                  formik.setFieldValue(
+                    'product_id',
+                    product ? String(product.id) : '',
+                  );
+                }}
               />
-              <InfoNote>
-                The supplier API exposes no catalog browse endpoint, so a listing
-                points at a master product by its numeric id. Ops can tell you
-                the id for the jar or bottle you want to sell.
-              </InfoNote>
-            </>
-          )}
+              <Text style={styles.helper}>
+                The master catalog product this listing sells. Aqua Flow ops
+                maintain that catalog.
+              </Text>
+            </View>
+          ) : null}
 
           <Card>
             <View style={styles.cardBody}>
@@ -235,7 +281,6 @@ const ProductFormScreen: React.FC<{navigation: any; route: any}> = ({
                   onBlur={formik.handleBlur('stock_quantity')}
                   keyboardType="number-pad"
                   mono
-                  editable={!isEdit}
                   error={fieldError('stock_quantity')}
                   style={styles.flex}
                 />
@@ -251,10 +296,18 @@ const ProductFormScreen: React.FC<{navigation: any; route: any}> = ({
                 />
               </View>
 
-              {isEdit && (
+              {isEdit && listing && (
                 <Text style={styles.helper}>
-                  Stock is changed through Adjust stock so every movement carries
-                  a reason.
+                  Editing stock here overwrites the count. To log a delivery or
+                  a loss with a reason,{' '}
+                  <Text
+                    style={styles.link}
+                    onPress={() =>
+                      navigation.replace(Route.AdjustStockScreen, {listing})
+                    }>
+                    use Adjust stock
+                  </Text>{' '}
+                  instead.
                 </Text>
               )}
 
@@ -267,7 +320,9 @@ const ProductFormScreen: React.FC<{navigation: any; route: any}> = ({
                 </View>
                 <AppSwitch
                   value={formik.values.is_active}
-                  onValueChange={value => formik.setFieldValue('is_active', value)}
+                  onValueChange={value =>
+                    formik.setFieldValue('is_active', value)
+                  }
                 />
               </View>
             </View>
@@ -302,6 +357,10 @@ const styles = StyleSheet.create({
   flex: {flex: 1},
   body: {padding: 20, gap: 13, paddingBottom: 30},
   cardBody: {gap: 12},
+  picker: {gap: 8},
+  productName: {fontSize: 15, fontWeight: '800', color: Colors.text},
+  productMeta: {fontSize: 12.5, color: Colors.textSecondary, marginTop: 3},
+  link: {color: Colors.primary, fontWeight: '800'},
   pair: {flexDirection: 'row', gap: 10},
   helper: {fontSize: 12, color: Colors.textMuted, lineHeight: 18},
   switchRow: {flexDirection: 'row', alignItems: 'center', gap: 12},

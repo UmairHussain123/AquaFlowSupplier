@@ -1,3 +1,5 @@
+import type {CityRef} from '../Cities/CitiesApi';
+
 export type OrderStatus =
   | 'placed'
   | 'accepted'
@@ -6,7 +8,9 @@ export type OrderStatus =
   | 'delivered'
   | 'completed'
   | 'rejected'
-  | 'cancelled';
+  | 'cancelled'
+  /** The rider couldn't hand the order over; the reason is in `cancellation_reason`. */
+  | 'delivery_failed';
 
 export interface OrderListParams {
   status?: OrderStatus | string;
@@ -26,12 +30,25 @@ export interface OrderCustomer {
   phone: string | null;
 }
 
+/**
+ * Frozen copy of the customer's address taken when the order was placed.
+ *
+ * Field names mirror the `addresses` table and the coordinates arrive as
+ * decimal strings ("24.8015000") — read it through `addressLine` /
+ * `addressCoords` in OrdersApi rather than touching the fields directly. The
+ * `line1`/`lat`/`lng` names are the older shape, still read as a fallback.
+ */
 export interface OrderAddressSnapshot {
-  lat: number | null;
-  lng: number | null;
-  line1: string | null;
-  area: string | null;
-  city: string | null;
+  label?: string | null;
+  address_line?: string | null;
+  landmark?: string | null;
+  area?: string | null;
+  city?: CityRef;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  line1?: string | null;
+  lat?: string | number | null;
+  lng?: string | number | null;
 }
 
 /** Money fields come back as decimal strings (e.g. "220.00"), not numbers. */
@@ -39,6 +56,8 @@ export interface OrderListItem {
   id: number;
   order_number: string;
   customer_id: number;
+  /** The shop user who placed it for the customer; null when the customer ordered in the app. */
+  placed_by_id?: number | null;
   shop_id: number;
   address_snapshot: OrderAddressSnapshot | null;
   contact_phone: string | null;
@@ -63,6 +82,8 @@ export interface OrderListItem {
   created_at: string;
   updated_at: string;
   customer: OrderCustomer | null;
+  /** Present on list and detail rows; carries the assigned rider. */
+  delivery?: OrderDelivery | null;
 }
 
 export interface OrderItem {
@@ -92,8 +113,11 @@ export interface OrderStatusHistoryEntry {
 export interface OrderDelivery {
   id: number;
   order_id: number;
+  rider_id?: number | null;
+  assigned_at?: string | null;
   dispatched_at: string | null;
   delivered_at: string | null;
+  rider?: {id: number; name: string} | null;
 }
 
 export interface OrderDetail extends OrderListItem {
@@ -136,7 +160,7 @@ export const ORDER_TABS: {
   {
     key: 'done',
     label: 'Done',
-    statuses: ['delivered', 'completed', 'rejected', 'cancelled'],
+    statuses: ['delivered', 'completed', 'rejected', 'cancelled', 'delivery_failed'],
   },
   // Everything in one list. It owns no status of its own — `orderTabKey` never
   // returns it, and the screen fills this bucket with the whole page — so an
@@ -144,3 +168,16 @@ export const ORDER_TABS: {
   // reachable here.
   {key: 'all', label: 'All', statuses: []},
 ];
+
+export interface CreateOrderPayload {
+  /** A hand-added customer from the shop's customer book (app customers can't be ordered for). */
+  shop_customer_id: number;
+  items: {shop_product_id: number; quantity: number}[];
+  /** What the shop charges for delivery; defaults to 0. */
+  delivery_fee?: number;
+  /** Override the customer's saved address for this order. */
+  address_line?: string;
+  area?: string;
+  /** Override the number the rider calls. */
+  contact_phone?: string;
+}

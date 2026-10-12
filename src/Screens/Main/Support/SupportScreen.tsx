@@ -1,4 +1,4 @@
-import React, {useCallback, useMemo, useState} from 'react';
+import React, {useCallback, useMemo, useRef, useState} from 'react';
 import {
   FlatList,
   Linking,
@@ -18,8 +18,10 @@ import AppHeader from '../../../Component/Common/AppHeader';
 import Card from '../../../Component/Common/Card';
 import EmptyState from '../../../Component/Common/EmptyState';
 import ListRow from '../../../Component/Common/ListRow';
+import LoadMoreFooter from '../../../Component/Common/LoadMoreFooter';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
 import TicketCard from '../../../Component/Cards/TicketCard';
+import {useSupplierRoles} from '../../../hooks/useSupplierRoles';
 import {setTicketTab} from '../../../Redux/slices/filterSlice';
 import {apiErrorMessage} from '../../../helper/helperFunction';
 import {
@@ -31,10 +33,43 @@ import {
 /**
  * SC3 — Support & disputes.
  *
- * Tickets are account-scoped (no shop id in the path). The list endpoint takes
- * only a `status` filter, so the Live / Closed tabs partition the current page
- * locally: open + pending are Live, resolved + closed are Closed.
+ * Tickets are account-scoped (no shop id in the path). The Live / Closed / All
+ * tabs partition the pages loaded so far locally, as the portal does: open +
+ * pending are Live, resolved + closed are Closed. "Load more" appends the next
+ * page. The jar-disputes link is for owners and managers only.
  */
+const PER_PAGE = 20;
+
+type Tab = 'live' | 'closed' | 'all';
+
+const TABS: {key: Tab; label: string}[] = [
+  {key: 'live', label: 'Live'},
+  {key: 'closed', label: 'Closed'},
+  {key: 'all', label: 'All'},
+];
+
+const matchesTab = (ticket: SupportTicket, tab: Tab) =>
+  tab === 'all'
+    ? true
+    : tab === 'live'
+    ? isTicketLive(ticket)
+    : !isTicketLive(ticket);
+
+const EMPTY_COPY: Record<Tab, {title: string; message: string}> = {
+  live: {
+    title: 'No open tickets',
+    message: 'Nothing is waiting on ops. Raise a ticket when something needs the ops team.',
+  },
+  closed: {
+    title: 'Nothing closed yet',
+    message: 'Resolved and closed tickets land here.',
+  },
+  all: {
+    title: 'No tickets yet',
+    message: "You haven't raised any tickets. Raise one when something needs the ops team.",
+  },
+};
+
 const FAQS = [
   {
     question: 'How do jar deposits work?',
@@ -56,26 +91,44 @@ const FAQS = [
 const SupportScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const dispatch = useDispatch();
-  const tab = useSelector((state: any) => state.filter.ticketTab);
+  const {isShopManager} = useSupplierRoles();
+  const tab: Tab = useSelector((state: any) => state.filter.ticketTab) ?? 'live';
 
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [page, setPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [openFaq, setOpenFaq] = useState<string | null>(null);
 
+  // Bumped on every fresh load so a slow response can't overwrite a newer one.
+  const requestId = useRef(0);
+
   const load = useCallback(async (isRefresh = false) => {
+    const id = ++requestId.current;
     if (isRefresh) setRefreshing(true);
     try {
-      const page = await listMyTickets({per_page: 50});
-      setTickets(page.data ?? []);
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(error, 'Could not load your tickets.'),
-      });
+      const res = await listMyTickets({per_page: PER_PAGE, page: 1});
+      if (id !== requestId.current) return;
+      const rows = res.data ?? [];
+      setTickets(rows);
+      setPage(res.current_page ?? 1);
+      setLastPage(res.last_page ?? 1);
+      setTotal(res.total ?? rows.length);
+      setError(null);
+    } catch (err) {
+      if (id !== requestId.current) return;
+      const message = apiErrorMessage(err, 'Could not load your tickets.');
+      setError(message);
+      Toast.show({type: 'error', text1: message});
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (id === requestId.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
@@ -85,15 +138,40 @@ const SupportScreen: React.FC = () => {
     }, [load]),
   );
 
+  const loadMore = async () => {
+    if (loadingMore || page >= lastPage) return;
+    const id = requestId.current;
+    setLoadingMore(true);
+    try {
+      const res = await listMyTickets({per_page: PER_PAGE, page: page + 1});
+      if (id !== requestId.current) return;
+      // A ticket raised meanwhile shifts the pages — skip rows already shown.
+      setTickets(prev => [
+        ...prev,
+        ...(res.data ?? []).filter(row => !prev.some(seen => seen.id === row.id)),
+      ]);
+      setPage(res.current_page ?? page + 1);
+      setLastPage(res.last_page ?? lastPage);
+      setTotal(res.total ?? total);
+    } catch (err) {
+      Toast.show({
+        type: 'error',
+        text1: apiErrorMessage(err, 'Could not load more tickets.'),
+      });
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const visible = useMemo(
-    () =>
-      tickets.filter(ticket =>
-        tab === 'live' ? isTicketLive(ticket) : !isTicketLive(ticket),
-      ),
+    () => tickets.filter(ticket => matchesTab(ticket, tab)),
     [tab, tickets],
   );
 
-  const liveCount = tickets.filter(isTicketLive).length;
+  const tabCount = (key: Tab) =>
+    tickets.filter(ticket => matchesTab(ticket, key)).length;
+
+  const newTicket = () => navigation.navigate(Route.CreateTicketScreen, {});
 
   if (loading) return <ScreenLoader />;
 
@@ -102,9 +180,7 @@ const SupportScreen: React.FC = () => {
       <AppHeader
         title="Support"
         right={
-          <TouchableOpacity
-            onPress={() => navigation.navigate(Route.CreateTicketScreen, {})}
-            style={styles.newButton}>
+          <TouchableOpacity onPress={newTicket} style={styles.newButton}>
             <Text style={styles.newButtonText}>New ticket</Text>
           </TouchableOpacity>
         }
@@ -130,24 +206,29 @@ const SupportScreen: React.FC = () => {
               </Text>
             </View>
 
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={() => navigation.navigate(Route.DisputesScreen)}>
-              <Card>
-                <Text style={styles.link}>Jar disputes — raise and follow a claim</Text>
-              </Card>
-            </TouchableOpacity>
+            {isShopManager && (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate(Route.DisputesScreen)}>
+                <Card>
+                  <Text style={styles.link}>Jar disputes — raise and follow a claim</Text>
+                </Card>
+              </TouchableOpacity>
+            )}
 
             <View style={styles.tabs}>
-              {(['live', 'closed'] as const).map(key => {
+              {TABS.map(({key, label}) => {
                 const active = key === tab;
+                const count = tabCount(key);
                 return (
                   <TouchableOpacity
                     key={key}
+                    accessibilityRole="button"
+                    accessibilityState={{selected: active}}
                     onPress={() => dispatch(setTicketTab(key))}
                     style={[styles.tab, active && styles.tabActive]}>
                     <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                      {key === 'live' ? `Live${liveCount ? ` · ${liveCount}` : ''}` : 'Closed'}
+                      {count ? `${label} · ${count}` : label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -164,19 +245,37 @@ const SupportScreen: React.FC = () => {
           />
         )}
         ListEmptyComponent={
-          <EmptyState
-            title={tab === 'live' ? 'No open tickets' : 'Nothing closed yet'}
-            message={
-              tab === 'live'
-                ? 'Raise a ticket when something needs the ops team.'
-                : 'Resolved and closed tickets land here.'
-            }
-            actionLabel={tab === 'live' ? 'Raise a ticket' : undefined}
-            onAction={() => navigation.navigate(Route.CreateTicketScreen, {})}
-          />
+          error && !tickets.length ? (
+            <EmptyState
+              title="Couldn't load your tickets"
+              message={error}
+              actionLabel="Try again"
+              onAction={() => load(true)}
+            />
+          ) : (
+            <EmptyState
+              title={EMPTY_COPY[tab].title}
+              message={
+                page < lastPage
+                  ? `${EMPTY_COPY[tab].message} Older tickets may be on the next page.`
+                  : EMPTY_COPY[tab].message
+              }
+              actionLabel={tab === 'closed' ? undefined : 'Raise a ticket'}
+              onAction={newTicket}
+            />
+          )
         }
         ListFooterComponent={
           <View style={styles.footer}>
+            <LoadMoreFooter
+              shown={tickets.length}
+              total={total}
+              hasMore={page < lastPage}
+              loading={loadingMore}
+              onLoadMore={loadMore}
+              noun="tickets"
+            />
+
             <Card flush>
               {FAQS.map((faq, index) => (
                 <ListRow

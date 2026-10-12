@@ -1,112 +1,128 @@
-import React, {useCallback, useState} from 'react';
-import {FlatList, StyleSheet, Text, View} from 'react-native';
-import {useFocusEffect} from '@react-navigation/native';
-import Toast from 'react-native-toast-message';
+import React, {useCallback, useEffect} from 'react';
+import {FlatList, RefreshControl, StyleSheet, View} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
 
 import {Colors} from '../../../Constant/Colors';
-import {Fonts} from '../../../Constant/Fonts';
+import Route from '../../../Constant/NavigationStrings';
 import AppHeader from '../../../Component/Common/AppHeader';
 import Card from '../../../Component/Common/Card';
 import EmptyState from '../../../Component/Common/EmptyState';
 import InfoNote from '../../../Component/Common/InfoNote';
-import KeyValueRow from '../../../Component/Common/KeyValueRow';
+import LoadMoreFooter from '../../../Component/Common/LoadMoreFooter';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
-import {useActiveShopId} from '../../../hooks/useActiveShop';
-import {apiErrorMessage, formatMoney} from '../../../helper/helperFunction';
+import {usePagedList} from '../../../hooks/usePagedList';
+import SettlementRow from '../../../Component/Money/SettlementRow';
+import {useSupplierRoles} from '../../../hooks/useSupplierRoles';
 import {
-  getWeeklyEarnings,
-  type WeeklyEarnings,
-} from '../../../Server/Earnings/EarningsApi';
+  listSettlements,
+  type Settlement,
+} from '../../../Server/Settlements/SettlementsApi';
 
-/** Week-by-week statements, each one the same breakdown the Money screen shows. */
+const PER_PAGE = 15;
+
+/** Every settlement, newest first, a page at a time. Owner only. */
 const StatementsScreen: React.FC = () => {
-  const shopId = useActiveShopId();
-  const [weeks, setWeeks] = useState<WeeklyEarnings[]>([]);
-  const [loading, setLoading] = useState(true);
+  const navigation = useNavigation<any>();
+  const {isOwner} = useSupplierRoles();
 
-  const load = useCallback(async () => {
-    if (!shopId) {
-      setLoading(false);
-      return;
-    }
-    try {
-      const settled = await Promise.allSettled(
-        Array.from({length: 6}, (_, index) => getWeeklyEarnings(shopId, index)),
-      );
-      setWeeks(
-        settled
-          .filter(
-            (result): result is PromiseFulfilledResult<WeeklyEarnings> =>
-              result.status === 'fulfilled',
-          )
-          .map(result => result.value)
-          .filter(week => week.orders.length > 0),
-      );
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(error, 'Could not load your statements.'),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [shopId]);
-
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
+  const fetchPage = useCallback(
+    (page: number) => listSettlements({per_page: PER_PAGE, page}),
+    [],
   );
 
-  if (loading) return <ScreenLoader />;
+  const list = usePagedList<Settlement>(
+    isOwner ? fetchPage : null,
+    'settlements',
+    'Could not load your statements.',
+  );
+  const {reload} = list;
+
+  // A stack screen that nothing else edits — loading once on mount keeps the
+  // pages already shown when coming back from a settlement.
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  if (!isOwner) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Statements" />
+        <EmptyState
+          title="Only the owner can see this"
+          message="Settlement statements are visible to the supplier account owner only."
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.screen}>
-      <AppHeader title="Statements" />
-
-      <FlatList
-        data={weeks}
-        keyExtractor={item => item.periodLabel}
-        contentContainerStyle={styles.body}
-        renderItem={({item}) => (
-          <Card>
-            <View style={styles.head}>
-              <Text style={styles.period}>{item.periodLabel}</Text>
-              <Text style={styles.net}>{formatMoney(item.net)}</Text>
-            </View>
-            <Text style={styles.meta}>
-              {item.orders.length} settled order
-              {item.orders.length === 1 ? '' : 's'} · paid{' '}
-              {item.settlementDate}
-            </Text>
-
-            <View style={styles.lines}>
-              {item.lines.map(line => (
-                <KeyValueRow
-                  key={line.label}
-                  label={line.label}
-                  value={formatMoney(Math.abs(line.value))}
-                  tone={line.tone}
-                />
-              ))}
-            </View>
-          </Card>
-        )}
-        ListEmptyComponent={
-          <EmptyState
-            title="No statements yet"
-            message="A week appears here once it has at least one delivered order."
-          />
-        }
-        ListFooterComponent={
-          weeks.length ? (
-            <InfoNote>
-              Statements are built from delivered orders in the app. Ops issue the
-              formal settlement note by email.
-            </InfoNote>
-          ) : undefined
-        }
+      <AppHeader
+        title="Statements"
+        subtitle="All shops on your supplier profile"
       />
+
+      {list.loading ? (
+        <ScreenLoader />
+      ) : (
+        <FlatList
+          data={list.rows}
+          keyExtractor={item => String(item.id)}
+          contentContainerStyle={styles.body}
+          refreshControl={
+            <RefreshControl
+              refreshing={list.refreshing}
+              onRefresh={() => reload('refresh')}
+            />
+          }
+          renderItem={({item}) => (
+            <Card flush>
+              <SettlementRow
+                settlement={item}
+                last
+                onPress={() =>
+                  navigation.navigate(Route.SettlementDetailScreen, {
+                    settlementId: item.id,
+                  })
+                }
+              />
+            </Card>
+          )}
+          ListEmptyComponent={
+            list.error ? (
+              <EmptyState
+                title="Couldn't load your statements"
+                message={list.error}
+                actionLabel="Try again"
+                onAction={() => reload('refresh')}
+              />
+            ) : (
+              <EmptyState
+                title="No statements yet"
+                message="Aqua Flow settles completed orders on a weekly cycle. Each closed cycle shows up here."
+              />
+            )
+          }
+          ListFooterComponent={
+            list.rows.length ? (
+              <View style={styles.footer}>
+                <LoadMoreFooter
+                  shown={list.rows.length}
+                  total={list.total}
+                  hasMore={list.hasMore}
+                  loading={list.loadingMore}
+                  onLoadMore={list.loadMore}
+                  noun="settlements"
+                />
+                <InfoNote>
+                  Tap a settlement to see its orders, the commission on each and
+                  the payouts made against it.
+                </InfoNote>
+              </View>
+            ) : undefined
+          }
+        />
+      )}
     </View>
   );
 };
@@ -114,11 +130,7 @@ const StatementsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: Colors.surface},
   body: {padding: 20, gap: 12, paddingBottom: 30},
-  head: {flexDirection: 'row', alignItems: 'baseline', gap: 12},
-  period: {flex: 1, fontSize: 15, fontWeight: '800', color: Colors.text},
-  net: {fontFamily: Fonts.mono, fontSize: 16, fontWeight: '800', color: Colors.text},
-  meta: {fontSize: 12, color: Colors.textSecondary, marginTop: 4},
-  lines: {gap: 9, marginTop: 12},
+  footer: {gap: 12},
 });
 
 export default StatementsScreen;

@@ -16,6 +16,7 @@ import {Fonts} from '../../../Constant/Fonts';
 import AppButton from '../../../Component/Common/AppButton';
 import AppHeader from '../../../Component/Common/AppHeader';
 import Card from '../../../Component/Common/Card';
+import EmptyState from '../../../Component/Common/EmptyState';
 import InfoNote from '../../../Component/Common/InfoNote';
 import OtpInput from '../../../Component/Common/OtpInput';
 import ProgressSteps from '../../../Component/Common/ProgressSteps';
@@ -23,6 +24,7 @@ import QuantityStepper from '../../../Component/Common/QuantityStepper';
 import ScreenLoader from '../../../Component/Common/ScreenLoader';
 import {CheckIcon} from '../../../Component/Icons/TabIcons';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
+import {useSupplierRoles} from '../../../hooks/useSupplierRoles';
 import {apiErrorMessage, formatMoney, toNumber} from '../../../helper/helperFunction';
 import {
   completeOrder,
@@ -30,6 +32,7 @@ import {
   emptiesExpected,
   fulfilmentProgress,
   getOrder,
+  isShopPlaced,
 } from '../../../Server/Order/OrdersApi';
 import type {OrderDetail} from '../../../Server/Order/OrderType';
 
@@ -44,12 +47,16 @@ const DELIVERY_CODE_LENGTH = 6;
  * confirmations the rider makes here and — when they don't match what the order
  * expected — the screen steers them into a dispute rather than silently
  * swallowing the difference.
+ *
+ * An order the shop placed itself has no code (the customer isn't on the app),
+ * so for those the OTP step drops out and `deliver` goes without one.
  */
 const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
   navigation,
   route,
 }) => {
   const shopId = useActiveShopId();
+  const {isShopManager} = useSupplierRoles();
   const orderId = route?.params?.orderId;
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
@@ -60,19 +67,24 @@ const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
   const [damaged, setDamaged] = useState(0);
   const [cashCollected, setCashCollected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!shopId || !orderId) return;
+    if (!shopId || !orderId) {
+      setLoadError('This order could not be found.');
+      setLoading(false);
+      return;
+    }
     try {
       const detail = await getOrder(shopId, orderId);
       setOrder(detail);
       setEmpties(emptiesExpected(detail.items));
       setCashCollected(detail.payment_status === 'paid');
+      setLoadError(null);
     } catch (err) {
-      Toast.show({
-        type: 'error',
-        text1: apiErrorMessage(err, 'Could not load the order.'),
-      });
+      const message = apiErrorMessage(err, 'Could not load the order.');
+      setLoadError(message);
+      Toast.show({type: 'error', text1: message});
     } finally {
       setLoading(false);
     }
@@ -85,8 +97,24 @@ const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
   );
 
   if (loading) return <ScreenLoader />;
-  if (!order) return <View style={styles.screen} />;
+  if (!order) {
+    return (
+      <View style={styles.screen}>
+        <AppHeader title="Complete delivery" />
+        <EmptyState
+          title="Couldn't load this order"
+          message={loadError ?? 'This order could not be found.'}
+          actionLabel="Try again"
+          onAction={() => {
+            setLoading(true);
+            load();
+          }}
+        />
+      </View>
+    );
+  }
 
+  const shopPlaced = isShopPlaced(order);
   const expected = emptiesExpected(order.items);
   const isCod = order.payment_method?.toLowerCase() === 'cod';
   const cashDue = toNumber(order.total_amount);
@@ -95,7 +123,7 @@ const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
   const submit = async () => {
     if (!shopId) return;
 
-    if (code.trim().length < DELIVERY_CODE_LENGTH) {
+    if (!shopPlaced && code.trim().length < DELIVERY_CODE_LENGTH) {
       setError(
         `Enter the ${DELIVERY_CODE_LENGTH}-digit code from the customer's app.`,
       );
@@ -110,14 +138,21 @@ const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
     setBusy(true);
 
     try {
-      const delivered = await deliverOrder(shopId, order.id, code.trim());
+      await deliverOrder(
+        shopId,
+        order.id,
+        shopPlaced ? undefined : code.trim(),
+      );
 
       // The API leaves a delivered order open for the settlement window; close
       // it straight away so the supplier isn't left with a half-finished row.
-      try {
-        await completeOrder(shopId, delivered.id);
-      } catch {
-        // Some shops are configured for ops to close the order — not an error.
+      // Closing is the shop's call — a rider would only get a 403 back.
+      if (isShopManager) {
+        try {
+          await completeOrder(shopId, order.id);
+        } catch {
+          // Some shops are configured for ops to close the order — not an error.
+        }
       }
 
       Toast.show({type: 'success', text1: 'Delivery completed'});
@@ -133,7 +168,12 @@ const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
       navigation.goBack();
     } catch (err) {
       setError(
-        apiErrorMessage(err, 'That code was not accepted. Ask for it again.'),
+        apiErrorMessage(
+          err,
+          shopPlaced
+            ? 'Could not confirm the delivery. Try again.'
+            : 'That code was not accepted. Ask for it again.',
+        ),
       );
     } finally {
       setBusy(false);
@@ -163,23 +203,36 @@ const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
             accepted → filled → on way → delivered
           </Text>
 
-          <Card highlighted>
-            <Text style={styles.cardTitle}>Enter customer's delivery OTP</Text>
-            <Text style={styles.cardLead}>
-              Ask {order.customer?.name ?? 'the customer'} for the code in their
-              app. The order cannot close without it.
-            </Text>
+          {shopPlaced ? (
+            <Card highlighted>
+              <Text style={styles.cardTitle}>Confirm the handover</Text>
+              <Text style={styles.cardLead}>
+                {order.customer?.name ?? 'This customer'} isn't on the app, so
+                there's no delivery OTP. Confirm once the order has been handed
+                over.
+              </Text>
 
-            <View style={styles.otp}>
-              <OtpInput
-                value={code}
-                onChange={setCode}
-                length={DELIVERY_CODE_LENGTH}
-              />
-            </View>
+              {!!error && <Text style={styles.error}>{error}</Text>}
+            </Card>
+          ) : (
+            <Card highlighted>
+              <Text style={styles.cardTitle}>Enter customer's delivery OTP</Text>
+              <Text style={styles.cardLead}>
+                Ask {order.customer?.name ?? 'the customer'} for the code in
+                their app. The order cannot close without it.
+              </Text>
 
-            {!!error && <Text style={styles.error}>{error}</Text>}
-          </Card>
+              <View style={styles.otp}>
+                <OtpInput
+                  value={code}
+                  onChange={setCode}
+                  length={DELIVERY_CODE_LENGTH}
+                />
+              </View>
+
+              {!!error && <Text style={styles.error}>{error}</Text>}
+            </Card>
+          )}
 
           <Card>
             <Text style={styles.cardTitle}>Empty jars collected</Text>
