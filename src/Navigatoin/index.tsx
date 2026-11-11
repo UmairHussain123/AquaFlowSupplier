@@ -16,6 +16,7 @@ export {default as ShopScreen} from '../Screens/Main/Shop/ShopScreen';
 // Orders (SB3, SB4)
 export {default as OrderDetailScreen} from '../Screens/Main/Order/OrderDetailScreen';
 export {default as CompleteDeliveryScreen} from '../Screens/Main/Order/CompleteDeliveryScreen';
+export {default as DeliverWithoutOtpScreen} from '../Screens/Main/Order/DeliverWithoutOtpScreen';
 export {default as OrderMessagesScreen} from '../Screens/Main/Order/OrderMessagesScreen';
 export {default as NewOrderScreen} from '../Screens/Main/Order/NewOrderScreen';
 
@@ -32,6 +33,7 @@ export {default as PaymentsScreen} from '../Screens/Main/Money/PaymentsScreen';
 
 // Shop settings (SC1)
 export {default as ShopDetailsScreen} from '../Screens/Main/Shop/ShopDetailsScreen';
+export {default as CreateShopScreen} from '../Screens/Main/Shop/CreateShopScreen';
 export {default as BusinessHoursScreen} from '../Screens/Main/Shop/BusinessHoursScreen';
 export {default as HolidaysScreen} from '../Screens/Main/Shop/HolidaysScreen';
 export {default as ServiceZonesScreen} from '../Screens/Main/Shop/ServiceZonesScreen';

@@ -110,6 +110,12 @@ export interface OrderStatusHistoryEntry {
   created_at: string;
 }
 
+/** How a delivery was closed out — `/deliver` fills in the first two, `/deliver-without-otp` the third. */
+export type DeliveryMethod = 'otp' | 'shop_placed' | 'no_otp';
+
+/** Who the rider actually handed the order to, when there was no OTP to check. */
+export type HandoverReason = 'family_member' | 'neighbor' | 'other';
+
 export interface OrderDelivery {
   id: number;
   order_id: number;
@@ -118,7 +124,18 @@ export interface OrderDelivery {
   dispatched_at: string | null;
   delivered_at: string | null;
   rider?: {id: number; name: string} | null;
+  delivery_method?: DeliveryMethod | null;
+  handover_reason?: HandoverReason | null;
+  handover_note?: string | null;
+  /** Expires ~10 minutes after issue — re-fetch the order rather than caching it. */
+  proof_photo_url?: string | null;
 }
+
+export const HANDOVER_REASON_LABELS: Record<HandoverReason, string> = {
+  family_member: 'Family member',
+  neighbor: 'Neighbor',
+  other: 'Other',
+};
 
 export interface OrderDetail extends OrderListItem {
   items: OrderItem[];

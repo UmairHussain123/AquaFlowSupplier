@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import {useFocusEffect, useNavigation} from '@react-navigation/native';
@@ -21,6 +22,7 @@ import ListRow from '../../../Component/Common/ListRow';
 import ChipGroup from '../../../Component/Common/ChipGroup';
 import ShopStatusPill from '../../../Component/Common/ShopStatusPill';
 import StatusBanners from '../../../Component/Common/StatusBanners';
+import {PlusIcon} from '../../../Component/Icons/TabIcons';
 import {useActiveShopId} from '../../../hooks/useActiveShop';
 import {
   ROLE_MANAGER,
@@ -298,6 +300,7 @@ const ShopScreen: React.FC = () => {
               <Text style={styles.sectionLabel}>Switch shop</Text>
               <ChipGroup
                 required
+                wrap
                 value={shopId}
                 options={shops.map(row => ({
                   value: row.id,
@@ -315,6 +318,15 @@ const ShopScreen: React.FC = () => {
                 }}
               />
             </View>
+          )}
+
+          {isOwner && (
+            <TouchableOpacity
+              style={styles.addShop}
+              onPress={() => navigation.navigate(Route.CreateShopScreen)}>
+              <PlusIcon color={Colors.primary} size={14} />
+              <Text style={styles.addShopText}>Add shop</Text>
+            </TouchableOpacity>
           )}
 
           {isShopManager && (
@@ -434,75 +446,85 @@ const styles = StyleSheet.create({
   flex: {flex: 1},
   header: {
     backgroundColor: Colors.white,
-    paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 12,
-    borderBottomLeftRadius: 26,
-    borderBottomRightRadius: 26,
+    paddingHorizontal: 18,
+    paddingTop: 5,
+    paddingBottom: 10,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
     shadowColor: 'rgba(11,27,43,1)',
     shadowOpacity: 0.05,
-    shadowRadius: 22,
-    shadowOffset: {width: 0, height: 8},
+    shadowRadius: 18,
+    shadowOffset: {width: 0, height: 6},
     elevation: 3,
     zIndex: 2,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.6,
     color: Colors.text,
   },
-  body: {paddingHorizontal: 16, paddingTop: 14, paddingBottom: 24, gap: 9},
+  body: {paddingHorizontal: 14, paddingTop: 11, paddingBottom: 20, gap: 7},
   sectionLabel: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: Colors.textMuted,
-    marginTop: 6,
-    marginLeft: 4,
+    marginTop: 4,
+    marginLeft: 3,
   },
 
-  identity: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  identity: {flexDirection: 'row', alignItems: 'center', gap: 10},
   logo: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
+    width: 40,
+    height: 40,
+    borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoText: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '800',
     letterSpacing: -0.5,
     color: Colors.white,
   },
-  shopName: {fontSize: 15, fontWeight: '800', color: Colors.text},
-  shopMeta: {fontSize: 12, color: Colors.textSecondary, marginTop: 1},
+  shopName: {fontSize: 14, fontWeight: '800', color: Colors.text},
+  shopMeta: {fontSize: 11.5, color: Colors.textSecondary, marginTop: 1},
   verified: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: Colors.success,
     fontWeight: '700',
     marginTop: 2,
   },
   suspended: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: Colors.warningText,
     fontWeight: '700',
     marginTop: 2,
   },
 
   switcher: {
-    gap: 7,
-    marginTop: 12,
-    paddingTop: 10,
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSoft,
   },
+  addShop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSoft,
+  },
+  addShopText: {fontSize: 12.5, fontWeight: '800', color: Colors.primary},
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 12,
-    paddingTop: 11,
+    gap: 10,
+    marginTop: 10,
+    paddingTop: 9,
     borderTopWidth: 1,
     borderTopColor: Colors.borderSoft,
   },

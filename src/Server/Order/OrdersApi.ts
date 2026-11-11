@@ -3,6 +3,7 @@ import {cityName} from '../Cities/CitiesApi';
 import {ORDER_TABS} from './OrderType';
 import type {
   CreateOrderPayload,
+  HandoverReason,
   OrderAddressSnapshot,
   OrderDetail,
   OrderItem,
@@ -110,6 +111,55 @@ export const deliverOrder = async (
   const {data} = await privateAPI.post<{data: OrderDetail}>(
     `${ordersBase(shopId)}/${orderId}/deliver`,
     code ? {code} : {},
+  );
+  return data.data;
+};
+
+export interface DeliverWithoutOtpPayload {
+  reason: HandoverReason;
+  /** Required for family_member / neighbor. */
+  recipient_name?: string;
+  /** Required when reason is 'other'. */
+  note?: string;
+  photo: {uri: string; name: string; type: string};
+  /** ISO-8601, the moment the shutter was pressed — the server rejects a stale or future one. */
+  captured_at: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+/**
+ * Closes out a delivery with a doorstep photo instead of the customer's OTP —
+ * handed to a family member, a neighbor, or some other arrangement. Sent as
+ * `multipart/form-data` because of the photo; everything else is a plain field.
+ */
+export const deliverOrderWithoutOtp = async (
+  shopId: number | string,
+  orderId: number | string,
+  payload: DeliverWithoutOtpPayload,
+): Promise<OrderDetail> => {
+  const form = new FormData();
+  form.append('reason', payload.reason);
+  if (payload.recipient_name) form.append('recipient_name', payload.recipient_name);
+  if (payload.note) form.append('note', payload.note);
+  form.append('captured_at', payload.captured_at);
+  if (payload.latitude !== undefined) {
+    form.append('latitude', String(payload.latitude));
+  }
+  if (payload.longitude !== undefined) {
+    form.append('longitude', String(payload.longitude));
+  }
+  // RN's FormData wants this shape rather than a real Blob/File.
+  form.append('photo', {
+    uri: payload.photo.uri,
+    name: payload.photo.name,
+    type: payload.photo.type,
+  } as unknown as Blob);
+
+  const {data} = await privateAPI.post<{data: OrderDetail}>(
+    `${ordersBase(shopId)}/${orderId}/deliver-without-otp`,
+    form,
+    {headers: {'Content-Type': 'multipart/form-data'}},
   );
   return data.data;
 };

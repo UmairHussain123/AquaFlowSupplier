@@ -121,27 +121,27 @@ const styles = StyleSheet.create({
   base: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
+    borderRadius: 14,
     overflow: 'hidden',
   },
   // minHeight, not height: `block` sets flex:1, and in a column parent (every
   // sticky footer) that resolves flexBasis to 0 and a fixed height is ignored —
   // which collapsed the button to nothing. A min constraint is clamped after
   // flex resolves, so it holds on both axes.
-  regular: {minHeight: 54, paddingHorizontal: 18},
-  small: {minHeight: 42, paddingHorizontal: 14, borderRadius: 13},
+  regular: {minHeight: 48, paddingHorizontal: 16},
+  small: {minHeight: 38, paddingHorizontal: 13, borderRadius: 11},
   block: {flex: 1},
   raised: {
     shadowColor: Colors.primary,
-    shadowOpacity: 0.26,
-    shadowRadius: 20,
-    shadowOffset: {width: 0, height: 9},
+    shadowOpacity: 0.22,
+    shadowRadius: 16,
+    shadowOffset: {width: 0, height: 7},
     elevation: 3,
   },
   disabled: {opacity: 0.5},
-  content: {flexDirection: 'row', alignItems: 'center', gap: 8},
-  label: {fontSize: 16, fontWeight: '800'},
-  labelSmall: {fontSize: 13},
+  content: {flexDirection: 'row', alignItems: 'center', gap: 7},
+  label: {fontSize: 15, fontWeight: '800'},
+  labelSmall: {fontSize: 12.5},
 });
 
 export default AppButton;

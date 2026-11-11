@@ -51,6 +51,44 @@ export const getShop = async (shopId: number | string): Promise<Shop> => {
 };
 
 /**
+ * Owner only. Requests another shop (branch) under the supplier's approved
+ * account. Required: public_name, address_line, city_id, latitude,
+ * longitude, contact_phone. Created as `status: "pending"` — any `status`
+ * sent is ignored by the API.
+ */
+export interface CreateShopPayload {
+  public_name: string;
+  address_line: string;
+  city_id: number;
+  latitude: number;
+  longitude: number;
+  contact_phone: string;
+  branch_name?: string;
+  description?: string;
+  landmark?: string;
+  area?: string;
+  whatsapp_number?: string;
+  capacity_per_day?: number;
+}
+
+/**
+ * Owner only — 403 unless the supplier account is approved, 422 when 3
+ * requests are already pending. The new shop needs admin approval before it
+ * goes live.
+ *
+ *   POST /supplier/shops
+ */
+export const createShop = async (
+  payload: CreateShopPayload,
+): Promise<Shop> => {
+  const {data} = await privateAPI.post<{data: Shop}>(
+    '/supplier/shops',
+    payload,
+  );
+  return data.data;
+};
+
+/**
  * The shop's own public details. `status` is the admin-controlled approval
  * state and is not accepted here — pausing yourself is `is_open: false`.
  */

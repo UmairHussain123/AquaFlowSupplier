@@ -122,28 +122,28 @@ const AppInput: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
-  wrap: {gap: 7},
+  wrap: {gap: 5},
   label: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
     color: Colors.textSecondary,
   },
   field: {
-    minHeight: 52,
+    minHeight: 46,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 15,
-    paddingHorizontal: 15,
+    borderRadius: 13,
+    paddingHorizontal: 13,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 7,
     backgroundColor: Colors.fieldBg,
   },
-  wrapCompact: {gap: 5},
-  labelCompact: {fontSize: 11.5},
-  fieldCompact: {minHeight: 44, borderRadius: 12, paddingHorizontal: 12},
-  inputCompact: {fontSize: 14},
-  fieldMultiline: {minHeight: 104, alignItems: 'flex-start', paddingVertical: 13},
+  wrapCompact: {gap: 4},
+  labelCompact: {fontSize: 11},
+  fieldCompact: {minHeight: 40, borderRadius: 11, paddingHorizontal: 11},
+  inputCompact: {fontSize: 13.5},
+  fieldMultiline: {minHeight: 90, alignItems: 'flex-start', paddingVertical: 11},
   fieldFocused: {
     borderColor: Colors.primary,
     borderWidth: 1.5,
@@ -153,16 +153,16 @@ const styles = StyleSheet.create({
   fieldDisabled: {backgroundColor: Colors.surface3},
   input: {
     flex: 1,
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '600',
     color: Colors.text,
     padding: 0,
   },
-  inputMultiline: {textAlignVertical: 'top', minHeight: 76},
-  fieldMultilineCompact: {minHeight: 66, paddingVertical: 11},
-  inputMultilineCompact: {minHeight: 44},
-  suffix: {fontSize: 13, color: Colors.textMuted, fontWeight: '700'},
-  toggle: {fontSize: 12.5, fontWeight: '800', color: Colors.primary},
+  inputMultiline: {textAlignVertical: 'top', minHeight: 64},
+  fieldMultilineCompact: {minHeight: 56, paddingVertical: 9},
+  inputMultilineCompact: {minHeight: 38},
+  suffix: {fontSize: 12.5, color: Colors.textMuted, fontWeight: '700'},
+  toggle: {fontSize: 12, fontWeight: '800', color: Colors.primary},
 });
 
 export default AppInput;

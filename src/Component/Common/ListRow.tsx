@@ -48,18 +48,18 @@ const ListRow: React.FC<{
 
 const styles = StyleSheet.create({
   row: {
-    paddingHorizontal: 15,
-    paddingVertical: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
-  rowDense: {paddingVertical: 11},
-  titleDense: {fontSize: 13.5},
+  rowDense: {paddingVertical: 9},
+  titleDense: {fontSize: 13},
   divider: {borderBottomWidth: 1, borderBottomColor: Colors.borderSoft2},
   text: {flex: 1},
-  title: {fontSize: 14, fontWeight: '800', color: Colors.text},
-  subtitle: {fontSize: 12, color: Colors.textSecondary, marginTop: 2},
+  title: {fontSize: 13.5, fontWeight: '800', color: Colors.text},
+  subtitle: {fontSize: 11.5, color: Colors.textSecondary, marginTop: 1.5},
 });
 
 export default ListRow;

@@ -95,7 +95,7 @@ const initialValues = {
   shop_area: '',
   shop_latitude: '',
   shop_longitude: '',
-  shop_contact_phone: '',
+  shop_contact_phone: '03',
   shop_whatsapp_number: '',
 };
 

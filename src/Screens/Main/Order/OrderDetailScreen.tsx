@@ -1,5 +1,6 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
+  Image,
   Linking,
   RefreshControl,
   ScrollView,
@@ -67,6 +68,7 @@ import {
   prepareOrder,
   rejectOrder,
 } from '../../../Server/Order/OrdersApi';
+import {HANDOVER_REASON_LABELS} from '../../../Server/Order/OrderType';
 import type {OrderDetail, OrderStatus} from '../../../Server/Order/OrderType';
 
 /** Steps only an owner or manager may take — the API answers a rider with a 403. */
@@ -410,6 +412,30 @@ const OrderDetailScreen: React.FC<{navigation: any; route: any}> = ({
           </TouchableOpacity>
         </Card>
 
+        {/* ---------- Handed over without a code ---------- */}
+        {order.delivery?.delivery_method === 'no_otp' && (
+          <Card>
+            <Text style={styles.label}>Delivered without a code</Text>
+            <Text style={styles.customer}>
+              {order.delivery.handover_reason
+                ? HANDOVER_REASON_LABELS[order.delivery.handover_reason]
+                : 'Other'}
+            </Text>
+            {!!order.delivery.handover_note && (
+              <Text style={styles.address}>{order.delivery.handover_note}</Text>
+            )}
+            {!!order.delivery.proof_photo_url && (
+              <Image
+                source={{uri: order.delivery.proof_photo_url}}
+                style={styles.proofPhoto}
+              />
+            )}
+            <Text style={styles.metaText}>
+              The customer can still contest this from their app.
+            </Text>
+          </Card>
+        )}
+
         {/* ---------- Rider ---------- */}
         <RiderCard
           delivery={order.delivery}
@@ -678,6 +704,13 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   customer: {fontSize: 15, fontWeight: '800', color: Colors.text, marginTop: 10},
+  proofPhoto: {
+    width: '100%',
+    height: 180,
+    borderRadius: 14,
+    backgroundColor: Colors.surface3,
+    marginTop: 10,
+  },
   address: {
     fontSize: 12.5,
     color: Colors.textSecondary,

@@ -13,6 +13,7 @@ import Toast from 'react-native-toast-message';
 
 import {Colors} from '../../../Constant/Colors';
 import {Fonts} from '../../../Constant/Fonts';
+import Route from '../../../Constant/NavigationStrings';
 import AppButton from '../../../Component/Common/AppButton';
 import AppHeader from '../../../Component/Common/AppHeader';
 import Card from '../../../Component/Common/Card';
@@ -231,6 +232,17 @@ const CompleteDeliveryScreen: React.FC<{navigation: any; route: any}> = ({
               </View>
 
               {!!error && <Text style={styles.error}>{error}</Text>}
+
+              <TouchableOpacity
+                onPress={() =>
+                  navigation.navigate(Route.DeliverWithoutOtpScreen, {
+                    orderId: order.id,
+                  })
+                }>
+                <Text style={styles.noCodeLink}>
+                  Customer has no code? Deliver without it
+                </Text>
+              </TouchableOpacity>
             </Card>
           )}
 
@@ -308,6 +320,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   otp: {marginTop: 14},
+  noCodeLink: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: Colors.primary,
+    marginTop: 14,
+  },
   error: {
     fontSize: 12.5,
     color: Colors.danger,

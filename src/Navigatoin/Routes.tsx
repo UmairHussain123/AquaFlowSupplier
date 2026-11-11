@@ -12,9 +12,11 @@ import {
   CompleteDeliveryScreen,
   ChangePasswordScreen,
   ContainerLedgerScreen,
+  CreateShopScreen,
   CreateTicketScreen,
   CustomerFormScreen,
   CustomersScreen,
+  DeliverWithoutOtpScreen,
   DisputeDetailScreen,
   DisputesScreen,
   EditProfileScreen,
@@ -74,6 +76,10 @@ const Routes: React.FC = () => (
       component={CompleteDeliveryScreen}
     />
     <Stack.Screen
+      name={Route.DeliverWithoutOtpScreen}
+      component={DeliverWithoutOtpScreen}
+    />
+    <Stack.Screen
       name={Route.OrderMessagesScreen}
       component={OrderMessagesScreen}
     />
@@ -101,6 +107,7 @@ const Routes: React.FC = () => (
 
     {/* Shop settings */}
     <Stack.Screen name={Route.ShopDetailsScreen} component={ShopDetailsScreen} />
+    <Stack.Screen name={Route.CreateShopScreen} component={CreateShopScreen} />
     <Stack.Screen
       name={Route.BusinessHoursScreen}
       component={BusinessHoursScreen}

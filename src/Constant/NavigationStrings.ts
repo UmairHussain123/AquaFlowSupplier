@@ -18,12 +18,14 @@ type ScreenNames = {
   // Stack screens
   OrderDetailScreen: string;
   CompleteDeliveryScreen: string;
+  DeliverWithoutOtpScreen: string;
   OrderMessagesScreen: string;
   ProductFormScreen: string;
   AdjustStockScreen: string;
   ContainerLedgerScreen: string;
   BusinessHoursScreen: string;
   ShopDetailsScreen: string;
+  CreateShopScreen: string;
   ServiceZonesScreen: string;
   HolidaysScreen: string;
   ComplianceScreen: string;
@@ -65,12 +67,14 @@ const Route: ScreenNames = {
 
   OrderDetailScreen: 'OrderDetailScreen',
   CompleteDeliveryScreen: 'CompleteDeliveryScreen',
+  DeliverWithoutOtpScreen: 'DeliverWithoutOtpScreen',
   OrderMessagesScreen: 'OrderMessagesScreen',
   ProductFormScreen: 'ProductFormScreen',
   AdjustStockScreen: 'AdjustStockScreen',
   ContainerLedgerScreen: 'ContainerLedgerScreen',
   BusinessHoursScreen: 'BusinessHoursScreen',
   ShopDetailsScreen: 'ShopDetailsScreen',
+  CreateShopScreen: 'CreateShopScreen',
   ServiceZonesScreen: 'ServiceZonesScreen',
   HolidaysScreen: 'HolidaysScreen',
   ComplianceScreen: 'ComplianceScreen',
