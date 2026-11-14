@@ -92,15 +92,30 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        release {
+            // The upload key. Its passwords and path live in
+            // ~/.gradle/gradle.properties, never in this repo, and the keystore
+            // itself sits outside the checkout. Losing that file means the Play
+            // listing can never be updated again, so keep a backup of it.
+            if (project.hasProperty('AQUAFLOW_SUPPLIER_UPLOAD_STORE_FILE')) {
+                storeFile file(AQUAFLOW_SUPPLIER_UPLOAD_STORE_FILE)
+                storePassword AQUAFLOW_SUPPLIER_UPLOAD_STORE_PASSWORD
+                keyAlias AQUAFLOW_SUPPLIER_UPLOAD_KEY_ALIAS
+                keyPassword AQUAFLOW_SUPPLIER_UPLOAD_KEY_PASSWORD
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // A checkout without the upload credentials still builds, signed
+            // with the debug key — fine for testing, and Play rejects it, which
+            // is the point: it can never be mistaken for a shippable build.
+            signingConfig project.hasProperty('AQUAFLOW_SUPPLIER_UPLOAD_STORE_FILE')
+                ? signingConfigs.release
+                : signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
